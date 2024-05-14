@@ -57,7 +57,7 @@ User documentation and API can be found at
 Todo
 ====
 
-Some components of Amoco are still in the
+Some components of amoco are still in the
 process of being pushed to the release branch or further developed.
 More precisely:
 
@@ -65,7 +65,6 @@ More precisely:
 - arm SIMD, VFP, NEON, TrustZone, Jazelle instruction sets are not implemented,
 - some solver-based disassembling strategies are not merged yet.
 - idb import/export features are not implemented.
-- 6502 and PPC archs are planned.
 
 Contributions to fulfill uncomplete/unimplemented parts are welcome.
 
@@ -87,6 +86,19 @@ Please see `LICENSE`_.
 
 Changelog
 =========
+
+- `v2.9.10`_
+
+  * x86: add support for real mode execution
+  * x86: add full support for segmentation/paging
+  * add baremetal-x86 system for bios firmware analysis
+  * merge new arch.io module to define IOs' stubs
+  * merge cas.blobs module
+  * add fast versions of rep stos/lods/scas/movs
+  * add tracepoint method in emul class
+  * add support for PE resources
+  * improve amoco app load/emul commands
+  * add set,display,nexti,until in emul ui.
 
 - `v2.9.9`_
 
@@ -397,6 +409,7 @@ Changelog
 .. _sqlalchemy: http://www.sqlalchemy.org
 .. _QDarkStyleSheet: https://github.com/ColinDuquesnoy/QDarkStyleSheet
 .. _LICENSE: https://github.com/bdcht/amoco/blob/release/LICENSE
+.. _v2.9.10: https://github.com/bdcht/amoco/releases/tag/v2.9.10
 .. _v2.9.9: https://github.com/bdcht/amoco/releases/tag/v2.9.9
 .. _v2.9.8: https://github.com/bdcht/amoco/releases/tag/v2.9.8
 .. _v2.9.7: https://github.com/bdcht/amoco/releases/tag/v2.9.7

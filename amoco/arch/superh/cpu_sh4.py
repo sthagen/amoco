@@ -22,5 +22,5 @@ from amoco.arch.superh.sh4 import spec_sh4
 disassemble = disassembler([spec_sh4], endian=lambda: -1, iclass=instruction_sh4)
 
 
-def PC():
+def PC(state=None):
     return pc

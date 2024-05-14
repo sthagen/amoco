@@ -23,7 +23,7 @@ endian = lambda: -1
 disassemble = disassembler([spec_vle], iclass=instruction_e200,endian=endian)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 def get_data_endian():

@@ -22,7 +22,7 @@ from amoco.arch.riscv.rv32i import spec_rv32i
 disassemble = disassembler([spec_rv32i], iclass=instruction_riscv)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

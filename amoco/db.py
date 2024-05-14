@@ -242,5 +242,27 @@ if has_sql:
             s = (self.id, self.name)
             return "<StructData #{}: {:<.016}>".format(*s)
 
+    class EmuData(Base):
+        """This class holds description of emul instance state
+        allow to snapshot an emulator's state with its current
+        history, handlers and breakpoints.
+        """
+
+        __tablename__ = "emu_data"
+        id = sql.Column(sql.Integer, primary_key=True)
+        name = sql.Column(sql.String, nullable=False)
+        cur = sql.Column(sql.String)
+        state = orm.deferred(sql.Column(sql.PickleType))
+
+        def __init__(self, e, name=None):
+            self.name = name or repr(e.task)
+            cur = e.task.state(e.task.cpu.PC())
+            self.cur = "{} <- {}".format(e.task.cpu.PC(), cur)
+            self.state = pickle.dumps(e.task.state)
+
+        def __repr__(self):
+            s = (self.id, self.name, self.cur)
+            return "<EmuData #{}: {}, {}>".format(*s)
+
     createdb()
     session = Session()

@@ -174,18 +174,18 @@ class Module(StructFormatter):
 # ------------------------------------------------------------------------------
 
 with Consts('Section.id'):
-    Custom = 0
-    Type = 1
-    Function = 2
-    Table = 3
-    Memory = 4
-    Global = 5
-    Export = 6
-    Start = 7
-    Element = 8
-    Code = 9
-    Data = 10
-    DataCount = 11
+    ID_Custom = 0
+    ID_Type = 1
+    ID_Function = 2
+    ID_Table = 3
+    ID_Memory = 4
+    ID_Global = 5
+    ID_Export = 6
+    ID_Start = 7
+    ID_Element = 8
+    ID_Code = 9
+    ID_Data = 10
+    ID_DataCount = 11
 
 
 # ------------------------------------------------------------------------------

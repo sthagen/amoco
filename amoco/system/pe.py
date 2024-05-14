@@ -100,6 +100,7 @@ class PE(BinFormat):
         self.functions = self.__functions()
         self.variables = self.__variables()
         self.tls = self.__tls()
+        #self.resources = self.__ResourceTable()
 
     def checksec(self):
         R = {}
@@ -277,6 +278,18 @@ class PE(BinFormat):
             else:
                 lct = LoadConfigTable(data, self.Opt.Magic)
                 return lct
+        return None
+
+    def __ResourceTable(self):
+        rt = self.Opt.DataDirectories.get("ResourceTable", None)
+        if rt is not None and rt.RVA != 0:
+            try:
+                data = self.getdata(rt.RVA)
+            except ValueError:
+                logger.warning("invalid ResourceTable RVA")
+            else:
+                rt = ResourceTable(data)
+                return rt
         return None
 
     def __variables(self):
@@ -1139,5 +1152,131 @@ class LoadConfigTable(StructFormatter):
                            )
         if data:
             self.unpack(data)
+
+# -----------------------------------------------------------------------------
+
+class ResourceTable(object):
+    def __init__(self, data, offset=0):
+        self.Tables = {}
+        try:
+            t = ResourceDirectoryTable(data,offset,ResourceDirectoryTypeEntry)
+            self.Tables['Type'] = t
+            offset += t.fullsize()
+            t = ResourceDirectoryTable(data,offset)
+            self.Tables['Name'] = t
+            offset += t.fullsize()
+            t = ResourceDirectoryTable(data,offset)
+            self.Tables['Language'] = t
+            offset += t.fullsize()
+        except Exception as e:
+            raise PEError(e)
+
+@StructDefine(
+"""
+I : Characteristics
+I : TimeDateStamp
+H : MajorVersion
+H : MinorVersion
+H : NumberOfNameEntries
+H : NumberOfIDEntries
+"""
+)
+class ResourceDirectoryTable(StructFormatter):
+    def __init__(self, data, offset=0, etype=None):
+        self.flag_formatter("Characteristics")
+        self.func_formatter(TimeDateStamp=token_datetime_fmt)
+        if data:
+            self.unpack(data, offset)
+            offset += self.size()
+            self.parse_entries(data,offset,etype)
+
+    def parse_entries(self,data,offset=0,etype=None):
+        if etype is None:
+            etype = ResourceDirectoryEntry
+        assert ResourceDirectoryEntry in etype.mro()
+        self.NameEntries = []
+        for i in range(self.NumberOfNameEntries):
+            e = etype(data,offset)
+            offset += e.size()
+            self.NameEntries.append(e)
+        self.IDEntries = []
+        for i in range(self.NumberOfIDEntries):
+            e = etype(data,offset)
+            offset += e.size()
+            self.IDEntries.append(e)
+
+    def fullsize(self):
+        elsz = ResourceDirectoryEntry.size()
+        nb = len(self.NameEntries) + len(self.IDEntries)
+        return self.size()+(elsz*nb)
+
+
+with Consts("ResourceType"):
+    RT_CURSOR = 1
+    RT_BITMAP = 2
+    RT_ICON   = 3
+    RT_MENU   = 4
+    RT_DIALOG = 5
+    RT_STRING = 6
+    RT_FONTDIR = 7
+    RT_FONT   = 8
+    RT_ACCELERATOR = 9
+    RT_RCDATA = 10
+    RT_MESSAGETABLE = 11
+    RT_GROUP_CURSOR = 12
+    RT_GROUP_ICON = 14
+    RT_VERSION = 16
+    RT_DLGINCLUDE = 17
+    RT_PLUGPLAY = 19
+    RT_VXD = 20
+    RT_ANICURSOR = 21
+    RT_ANIICON = 22
+    RT_HTML = 23
+    RT_MANIFEST = 24
+
+@StructDefine(
+"""
+I : DataRVA
+I : Size
+I : Codepage
+I : reserved
+"""
+)
+class ResourceDataEntry(StructFormatter):
+    pass
+
+@StructDefine(
+"""
+I : Name_or_ID
+I : DataEntry
+"""
+)
+class ResourceDirectoryEntry(StructFormatter):
+    def __init__(self, data, offset=0):
+        self.address_formatter("DataEntry")
+        if data:
+            self.unpack(data, offset)
+    def is_leaf(self):
+        return self.DataEntry>>31 == 0
+    def SubdirectoryOffset(self):
+        if not self.is_leaf():
+            return self.DataEntry&0x7fffffff
+        return None
+
+class ResourceDirectoryTypeEntry(ResourceDirectoryEntry):
+    def __init__(self, data, offset=0):
+        self.fields[0].name = "ResourceType"
+        self.name_formatter("ResourceType")
+        super().__init__(data,offset)
+
+
+@StructDefine(
+"""
+s*~H : String
+"""
+)
+class ResourceDirectoryString(StructFormatter):
+    pass
+
 
 

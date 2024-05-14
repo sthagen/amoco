@@ -1,4 +1,3 @@
-import pytest
 import codecs
 from amoco.arch.sparc import cpu_v8 as cpu
 from amoco.arch.sparc.env import *

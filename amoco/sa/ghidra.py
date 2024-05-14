@@ -51,7 +51,28 @@ def setFunctionName(address,name):
     if isinstance(address,int):
         address = toAddr(address)
     f = getFunctionAt(address)
-    f.setName(name, USER_DEFINED)
+    if f is not None:
+        f.setName(name, USER_DEFINED)
+    else:
+        f = createFunction(address,name)
+
+# example of renaming syscalls from a given instruction string and
+# fixed offset to the syscall number of start of function.
+def rename_syscalls(match_instruction_string, syscall_dict):
+    USER_DEFINED = ghidra.program.model.symbol.SourceType.USER_DEFINED
+    for i in currentProgram.listing.getInstructions(True):
+        if str(i)==match_instruction_string:
+            addr = i.getAddress()
+            f = getFunctionBefore(addr)
+            off = addr.getOffset()-1
+            num = getByte(toAddr(off))&0xff
+            if num in syscalls_dict:
+                name = syscalls_dict[num]
+                if f is None:
+                    addr = toAddr(addr.getOffset()-4)
+                    f = createFunction(addr,name)
+                else:
+                    f.setName(name, USER_DEFINED)
 
 def create_labels(labels):
     USER_DEFINED = ghidra.program.model.symbol.SourceType.USER_DEFINED

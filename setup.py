@@ -30,7 +30,7 @@ It features:
 
 setup(
     name = 'amoco',
-    version = '2.9.9',
+    version = '2.9.10',
     description = 'yet another binary analysis framework',
     long_description = long_descr,
     # Metadata
@@ -57,7 +57,6 @@ setup(
                         'pyparsing',
                         'traitlets',
                         'blessed',
-                        'tqdm',
                        ],
     entry_points={
         'console_scripts': [ 'amoco=amoco.ui.app:cli [app]' ],
@@ -66,7 +65,6 @@ setup(
         'app' : ['click',
                  'pygments',
                  'z3-solver',
-                 'tqdm',
                  'ccrawl>=1.9',
                  'PySide6',
                  'IPython',

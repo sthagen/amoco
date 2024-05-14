@@ -1,5 +1,3 @@
-import pytest
-
 from amoco.config import conf
 conf.UI.formatter = 'Null'
 conf.Cas.unicode = False

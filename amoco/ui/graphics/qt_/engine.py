@@ -108,7 +108,7 @@ from .taskwin  import *
 
 @DefineBuilder("dataView")
 def dataView_builder(view):
-    return HexView(data=view.of)
+    return HexView(dataio=view.of)
 
 @DefineBuilder("execView")
 def execView_builder(view):

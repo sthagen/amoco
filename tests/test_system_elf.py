@@ -1,5 +1,3 @@
-import pytest
-
 from amoco.system.elf import Elf
 from amoco.system.core import DataIO
 

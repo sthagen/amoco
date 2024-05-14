@@ -21,7 +21,7 @@ from amoco.arch.z80 import spec_gb
 disassemble = disassembler([spec_gb], iclass=instruction_gb)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

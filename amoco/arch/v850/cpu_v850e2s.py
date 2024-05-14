@@ -21,7 +21,7 @@ import amoco.arch.v850.spec_v850e2s as spec
 disassemble = disassembler([spec], iclass=instruction_v850)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

@@ -35,6 +35,8 @@ def getModRM(obj, Mod, RM, data):
     opdsz = obj.misc["opdsz"] or env.internals["mode"]
     adrsz = obj.misc["adrsz"] or env.internals["mode"]
     seg = obj.misc["segreg"]
+    if seg is None:
+        seg = env.ds
     # r/16/32 case:
     if Mod == 0b11:
         op1 = env.getreg(RM, opdsz)
@@ -172,3 +174,4 @@ def check_nopfx(obj, f=do_nothing):
         f(obj)
         return True
     return False
+

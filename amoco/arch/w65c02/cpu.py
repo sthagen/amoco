@@ -21,7 +21,7 @@ from amoco.arch.w65c02 import spec
 disassemble = disassembler([spec], iclass=instruction_w65c02)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

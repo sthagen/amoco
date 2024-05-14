@@ -1,4 +1,3 @@
-import pytest
 import struct
 from amoco.arch.arm import cpu_armv7 as cpu
 from amoco.arch.arm.v7.env import *

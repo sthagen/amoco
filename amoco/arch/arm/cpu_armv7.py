@@ -29,7 +29,7 @@ endian = lambda: 1 if internals["ibigend"] == 0 else -1
 disassemble = disassembler([spec_armv7, spec_thumb], instruction_armv7, mode, endian)
 
 
-def PC():
+def PC(state=None):
     return pc_
 
 

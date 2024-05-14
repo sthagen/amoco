@@ -22,7 +22,7 @@ from amoco.arch.mips.r3000 import spec
 disassemble = disassembler([spec], iclass=instruction_r3000)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

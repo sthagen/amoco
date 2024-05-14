@@ -138,7 +138,7 @@ class StructCore(object):
         if (
             (self.packed == other.packed)
             and (self.union == other.union)
-            and (self.typdef == other.typedef)
+            and (self.typedef == other.typedef)
             and len(self.fields) == len(other.fields)
             and all((sf == of for sf, of in zip(self.fields, other.fields)))
         ):
@@ -185,7 +185,7 @@ class StructCore(object):
                     data.append(getattr(self._v, f.name))
                 elif hasattr(f,'subnames'):
                     D = {}
-                    for x in self.subnames:
+                    for x in f.subnames:
                         D[x] = getattr(self._v,x)
                     data.append(D)
         parts = []

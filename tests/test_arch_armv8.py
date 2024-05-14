@@ -1,5 +1,3 @@
-import pytest
-
 from amoco.arch.arm import cpu_armv8 as cpu
 from amoco.arch.arm.v8.env64 import *
 
@@ -30,11 +28,11 @@ def test_decoder_003():
 
 # SIMD:
 
-def test_decoder_00x():
+def test_decoder_004():
   c = b'\xe5\x54\x42\xfd'
   i = cpu.disassemble(c)
 
-def test_decoder_00x():
+def test_decoder_005():
   c = b'\xe5\x54\x42\xbd'
   i = cpu.disassemble(c)
 

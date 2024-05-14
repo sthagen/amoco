@@ -990,8 +990,8 @@ def ia32_xfence(obj, Mod, RM, data):
     obj.operands = []
 
 
-@ispec_ia32("*>[ {0f}{20} /r ]", mnemonic="MOV", _inv=False)
-@ispec_ia32("*>[ {0f}{22} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{20} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{22} /r ]", mnemonic="MOV", _inv=False)
 def ia32_mov_cr(obj, Mod, REG, RM, data, _inv):
     if REG not in (0, 2, 3, 4):
         raise InstructionError(obj)
@@ -1001,9 +1001,11 @@ def ia32_mov_cr(obj, Mod, REG, RM, data, _inv):
     obj.type = type_system
 
 
-@ispec_ia32("*>[ {0f}{21} /r ]", mnemonic="MOV", _inv=False)
-@ispec_ia32("*>[ {0f}{23} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{21} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{23} /r ]", mnemonic="MOV", _inv=False)
 def ia32_mov_dr(obj, Mod, REG, RM, data, _inv):
+    if REG not in (0, 1, 2, 3, 6, 7):
+        raise InstructionError(obj)
     op1 = env.dr(REG)
     op2 = getregR(obj, RM, 64)
     obj.operands = [op1, op2] if not _inv else [op2, op1]

@@ -21,7 +21,7 @@ logger.debug("loading module")
 from .expressions import *
 
 from amoco.cas.tracker import generation
-from amoco.system.memory import MemoryMap
+from amoco.system.memory import MemoryMap,MemoryMapError
 from amoco.arch.core import Bits
 from amoco.ui.views import mapperView
 
@@ -47,7 +47,7 @@ class mapper(object):
         cur    : is the optional interface to a task.
     """
 
-    __slots__ = ["__map", "__Mem", "conds", "cur", "view"]
+    __slots__ = ["__map", "__Mem", "conds", "cur", "view", "meminit0"]
 
     def __init__(self, instrlist=None, cur=None):
         self.__map = generation()
@@ -56,6 +56,7 @@ class mapper(object):
         self.__Mem = MemoryMap()
         self.conds = []
         self.cur = cur
+        self.meminit0 = False
         icache = []
         # if the __map needs to be inited before executing instructions
         # one solution is to prepend the instrlist with a function dedicated
@@ -206,7 +207,7 @@ class mapper(object):
         "read l bytes from memory address a and return an expression"
         try:
             res = self.__Mem.read(a, l)
-        except MemoryError:  # no zone for location a;
+        except MemoryMapError:  # no zone for location a;
             res = [exp(l * 8)]
         if endian == -1:
             res.reverse()
@@ -219,7 +220,10 @@ class mapper(object):
             elif isinstance(p, exp):
                 if p._is_def == 0:
                     # p is "bottom":
-                    p = mem(a, p.size, disp=cur)
+                    if self.meminit0:
+                        p = cst(0,p.size)
+                    else:
+                        p = mem(a, p.size, disp=cur)
                 elif p.etype==et_ext and p._subrefs.get("mmio_r",None):
                     p = p.stub(self,mode="r")
             P.append(p)
@@ -235,7 +239,7 @@ class mapper(object):
         for l in locs:
             try:
                 oldv = self.__Mem.read(l,len(v))[0]
-            except MemoryError:
+            except MemoryMapError:
                 oldv = l
             if isinstance(oldv,ext) and oldv._subrefs.get("mmio_w",None):
                 oldv.stub(self,mode="w")
@@ -249,7 +253,7 @@ class mapper(object):
         r = self.M(k) if k._is_mem else self.R(k)
         if k.size != r.size:
             raise ValueError("size mismatch")
-        return r[0 : k.size]
+        return r[0 : k.size].simplify()
 
     # define image v of antecedent k:
     def __setitem__(self, k, v):

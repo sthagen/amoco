@@ -21,7 +21,7 @@ from amoco.arch.z80 import spec_mostek
 disassemble = disassembler([spec_mostek], iclass=instruction_z80)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

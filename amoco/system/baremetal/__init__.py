@@ -27,3 +27,15 @@ def loader_tricore(p):
     from amoco.system.baremetal.tricore import SSW
     logger.info("baremetal/tricore firmware loading...")
     return SSW.loader(p)
+
+@DefineLoader("baremetal-x86")
+def loader_386(p):
+    from amoco.system.baremetal.x86 import BSC
+    logger.info("baremetal/x86 firmware loading...")
+    return BSC(p)
+
+@DefineLoader("baremetal-x86-legacy")
+def loader_386_legacy(p):
+    from amoco.system.baremetal.x86 import BSC
+    logger.info("baremetal/x86 legacy firmware loading...")
+    return BSC(p,legacy=True)

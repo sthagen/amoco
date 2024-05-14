@@ -80,6 +80,10 @@ def _checkarg_slice(f):
 
 et_cst = 0x00001
 et_reg = 0x00002
+# note:  0x00004 \
+# note:  0x00008 / these 2 values are used as variants to other types.
+et_vra = 0x00004
+et_vrb = 0x00008
 # note:  0x000#0 is for reg subtypes (STD/PC/FLAG/STACK/OTHER)
 et_slc = 0x00100
 et_ext = 0x00200
@@ -90,7 +94,8 @@ et_tst = 0x02000
 et_eqn = 0x04000
 et_vec = 0x08000
 et_cmp = 0x10000
-et_msk = 0x1ffff
+et_blb = 0x20000
+et_msk = 0x3ffff
 
 # ------------------------------------------------------------------------------
 # exp is the core class for all expressions.
@@ -1336,11 +1341,14 @@ class mem(exp):
 
     def eval(self, env):
         a = self.a.eval(env)
-        m = env.use()
-        for loc, v in self.mods:
-            if loc._is_ptr:
-                loc = env(loc)
-            m[loc] = env(v)
+        if self.mods:
+            m = env.use()
+            for loc, v in self.mods:
+                if loc._is_ptr:
+                    loc = env(loc)
+                m[loc] = env(v)
+        else:
+            m = env
         res = m[mem(a, self.size, endian=self.endian)]
         res.sf = self.sf
         return res
@@ -1360,7 +1368,7 @@ class mem(exp):
     def addr(self, env):
         return self.a.eval(env).unsigned()
 
-    def bytes(self, sta=0, sto=None, endian=0):
+    def bytes(self, sta=0, sto=None, endian=1):
         s = slice(sta, sto)
         l = self.length
         sta, sto, stp = s.indices(l)
@@ -1448,18 +1456,18 @@ class ptr(exp):
             self.disp = 0
         return self
 
-    # default segment handler does not care about seg value:
-    @staticmethod
-    def segment_handler(env, s, bd):
+    # default segment handler just forwards the ptr object
+    # see arch/x86/env.py for example of segment_handler override.
+    @classmethod
+    def segment_handler(cls, env, s, bd):
         base, disp = bd
         return ptr(base, s, disp)
 
     def eval(self, env):
         a = self.base.eval(env)
-        s = self.seg
-        if isinstance(s, exp):
-            s = s.eval(env)
-        return self.segment_handler(env, s, (a, self.disp))
+        if a._is_ext:
+            return a
+        return self.segment_handler(env, self.seg, (a, self.disp))
 
 # ------------------------------------------------------------------------------
 
@@ -1627,6 +1635,19 @@ class tst(exp):
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
     etype = et_tst
+
+    def __new__(cls, t, l, r):
+        if t is True or t is False:
+            t = cst(t, 1)
+        if t._is_cst and t.size==1:
+            if t.value==1:
+                return l
+            if t.value==0:
+                return r
+        return super().__new__(cls)
+
+    def __getnewargs__(self):
+        return (self.tst,self.l,self.r)
 
     def __init__(self, t, l, r):
         if t is True or t is False:
@@ -2190,12 +2211,13 @@ def eqn2_helpers(e, bitslice=False, widening=False):
         elif e.op.symbol in (OP_LSL, OP_LSR):
             c = comp(e.l.size)
             c[0 : e.l.size] = cst(0, e.l.size)
-            if e.op.symbol == OP_LSL:
-                l = e.l[0 : e.l.size - e.r.value]
-                c[e.r.value : e.l.size] = l
-            elif e.op.symbol == OP_LSR:
-                l = e.l[e.r.value : e.l.size]
-                c[0 : e.l.size - e.r.value] = l
+            if e.l.size>e.r.value:
+                if e.op.symbol == OP_LSL:
+                    l = e.l[0 : e.l.size - e.r.value]
+                    c[e.r.value : e.l.size] = l
+                elif e.op.symbol == OP_LSR:
+                    l = e.l[e.r.value : e.l.size]
+                    c[0 : e.l.size - e.r.value] = l
             return c.simplify()
         # if e:= ((a op b) e.op cst)
         if e.l._is_eqn:

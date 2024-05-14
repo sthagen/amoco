@@ -1,5 +1,4 @@
 import pytest
-
 from amoco.cas.expressions import *
 
 @pytest.fixture(scope='module')

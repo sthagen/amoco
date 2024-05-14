@@ -61,20 +61,21 @@ class srv(object):
         self.scope = scope
         self.obj = obj
         self._srv = None
+        self.history = ""
+        self.lastcmd = None
 
     def start(self, daemon=True, timeout=conf.Server.timeout):
         def do_cmd(i, cmdline):
+            self.history += "%s\n"%cmdline
             args = cmdline.split()
             cmd = args[0]
             if cmd in self.cmds:
-                # logger.debug('Out[%d]: %s'%(i,cmdline))
                 res = self.cmds[cmd].run(self, args)
                 self.lastcmd = cmd
             else:
                 logger.debug("command not found: %s" % cmd)
                 res = 0
             return res
-
         def mainloop(ctrl, msgs, outs):
             i = 0
             while True:
@@ -97,7 +98,6 @@ class srv(object):
                     i += 1
             logger.verbose("server stopped (queue is empty.)")
             return i
-
         self.shar = mp.Array(ctypes.c_ubyte, [0] * conf.Server.wbsz)
         self.ctrl = mp.Queue()
         self.msgs = mp.Queue()
@@ -112,7 +112,7 @@ class srv(object):
         if self._srv and self._srv.is_alive():
             self._srv.terminate()
             logger.verbose("server process terminated.")
-            self._srv = None
+        self._srv = None
 
     def interact(self):
         if conf.UI.cli == "cmdcli":
@@ -135,6 +135,19 @@ class cmd_hello(object):
         if srv.obj:
             L.append("%s is loaded" % srv.obj)
         srv.msgs.put("\n".join(L))
+        # wait for new command (don't quit client loop):
+        return 0
+
+
+# -----------------------------------------------------------------------------
+
+@DefineSrvCommand(srv,"history",['h'])
+class cmd_history(object):
+    "history: show all commands issued so far."
+
+    @staticmethod
+    def run(srv, args):
+        srv.msgs.put(srv.history)
         # wait for new command (don't quit client loop):
         return 0
 
@@ -164,9 +177,12 @@ class cmd_load(object):
 # -----------------------------------------------------------------------------
 
 
-@DefineSrvCommand(srv,"eval",["p"])
+@DefineSrvCommand(srv,"eval",["p","set"])
 class cmd_eval(object):
     """eval/p EXPR: evaluate python amoco EXPR in task context.
+       The 'set' command allows for modifying the current state by setting a
+       right-value EXPR to a left-value location EXPR where the separator
+       is the symbol '='. For example 'set zf = 1'.
 
        objects that can be accessed are:
        - state (global mapper that represents the current cpu state)
@@ -198,17 +214,34 @@ class cmd_eval(object):
     @staticmethod
     def expr(srv, args):
         # args: should be arguments list without the leading command
-        x = ''.join(args)
+        x = ' '.join(args)
         try:
             res = eval(x,cmd_eval.glob(srv))
         except Exception as e:
             res = "eval error: %s"%e
         return res
 
+    @staticmethod
+    def expr_set(srv,p):
+        #separate left/right lists of p:
+        l,r = [x.split() for x in p.split("=",1)]
+        lx = cmd_eval.expr(srv,l)
+        rx = cmd_eval.expr(srv,r)
+        return (lx,rx)
+
     def run(self, srv, args):
         cmd = args.pop(0)
-        expr = self.expr(srv,args)
-        srv.msgs.put(str(expr))
+        try:
+            if cmd=="set":
+                lx,rx = cmd_eval.expr_set(srv,' '.join(args))
+                #actually set lx to rx:
+                srv.obj.task.setx(lx,rx)
+                srv.msgs.put("%s <- %s"%(lx,rx))
+                return 0
+            expr = self.expr(srv,args)
+            srv.msgs.put(str(expr))
+        except ValueError as e:
+            srv.msgs.put("error: %s"%e)
         return 0
 
 
@@ -238,7 +271,10 @@ class cmd_hexdump(object):
             w = srv.obj.task.cpu.PC().size
             if len(args)>0:
                 args = ''.join(args)
-                nbl,nbc,_w = re.findall('\((\d+),(\d+)\)(/\d+)?',args)[0]
+                try:
+                    nbl,nbc,_w = re.findall('\((\d+),(\d+)\)(/\d+)?',args)[0]
+                except Exception:
+                    srv.msgs.put("exception in hexdump command arguments (default (1,1))")
                 nbl = int(nbl)
                 nbc = int(nbc)
                 if _w.startswith('/'):
@@ -253,6 +289,58 @@ class cmd_hexdump(object):
             return 0
         self.last_args = (addr,nbl,nbc,w)
         expr = srv.obj.task.view.memory(addr,nbl,nbc,w)
+        srv.msgs.put(str(expr))
+        return 0
+
+
+# -----------------------------------------------------------------------------
+
+
+@DefineSrvCommand(srv,"display",["dt"])
+class cmd_display(object):
+    """display/dt EXPR typename
+
+       display memory at address EXPR as an instance of typename,
+       where typename is searched in the ccrawl database with the same name
+       as the current program's binary, and with ".db" extension or the default
+       database provided by configuration.
+    """
+    def __init__(self):
+        from ccrawl import main as cc
+        self.last_args  = None
+        self.c = cc.conf.config = cc.conf.Config()
+        self.cc = cc
+        self.cache = {}
+
+    def run(self, srv, args):
+        cmd = args.pop(0)
+        if len(args)!=2:
+            srv.msgs.put("usage is 'display/dt EXPR typename'")
+            return 0
+        x = args.pop(0)
+        addr = eval(x,cmd_eval.glob(srv))
+        tname = args.pop(0)
+        if tname in self.cache:
+            axt = self.cache[tname]
+        else:
+            self.c.Database.local = srv.obj.task.bin.filename+'.db'
+            self.c.Database.localonly = True
+            db = self.cc.Proxy(self.c.Database)
+            Q = self.cc.where("id")==tname
+            if db.contains(Q):
+                l = db.get(Q)
+                x = self.cc.ccore.from_db(l)
+                from ccrawl.ext.amoco import build
+                axt = build(x,db)
+                self.cache[tname] = axt
+            else:
+                srv.msgs.put("type '%d' not found in database (%s)"%(tname,
+                                                                     self.c.Database.local))
+        self.last_args = (addr,tname)
+        target = srv.obj.task.state(addr)
+        psz = srv.obj.task.cpu.PC().size()//8
+        data = srv.obj.task.read_data(target,axt.size())[0]
+        expr = axt().unpack(data,psize=psz)
         srv.msgs.put(str(expr))
         return 0
 
@@ -300,7 +388,7 @@ class cmd_disasm(object):
 
 @DefineSrvCommand(srv,"header")
 class cmd_header(object):
-    "header: pretty-print the task binary header (ELF/PE/Mach-O)."
+    "header: pretty-print the task binary header (ELF/PE/Mach-O/COFF/...)."
 
     @staticmethod
     def run(srv, args):
@@ -357,6 +445,50 @@ class cmd_stepi(object):
 # -----------------------------------------------------------------------------
 
 
+@DefineSrvCommand(srv,"nexti",["ni"])
+class cmd_nexti(object):
+    """
+    nexti/ni: break on next listing instruction (and remove breakpoint.)
+    """
+
+    @staticmethod
+    def run(srv, args):
+        if srv.obj:
+            cur = srv.obj.block_cur.instr[0]
+            target = cur.address+cur.length
+            res = srv.obj.breakpoint(target)
+            cmd_continue.run(srv,args)
+            srv.obj.hooks.pop()
+        else:
+            srv.msgs.put('error: no task loaded')
+        return 0
+
+
+# -----------------------------------------------------------------------------
+
+
+@DefineSrvCommand(srv,"until",["u"])
+class cmd_until(object):
+    """
+    until/u: break on given address/expression/instruction's property
+             (and remove breakpoint.)
+    """
+
+    @staticmethod
+    def run(srv, args):
+        cmd = args.pop(0)
+        if srv.obj:
+            res = srv.obj.breakpoint(cmd_eval.expr(srv,args))
+            cmd_continue.run(srv,args)
+            srv.obj.hooks.pop()
+        else:
+            srv.msgs.put('error: no task loaded')
+        return 0
+
+
+
+# -----------------------------------------------------------------------------
+
 @DefineSrvCommand(srv,"continue",["c"])
 class cmd_continue(object):
     """
@@ -379,7 +511,7 @@ class cmd_continue(object):
                     print("count: %08dk  perf: %2.4f KHz"%(count//group,freq),
                           end="\r")
             t = time.time()
-            srv.msgs.put("count: %08d  perf: %2.5f"%(count,(t-t0)/count))
+            srv.msgs.put("count: %08d  time: %2.5f s  "%(count,(t-t0)))
             srv.msgs.put(str(srv.obj.view))
         else:
             srv.msgs.put('error: no task loaded')
@@ -389,10 +521,10 @@ class cmd_continue(object):
 # -----------------------------------------------------------------------------
 
 
-@DefineSrvCommand(srv,"trace",["tr"])
-class cmd_trace(object):
+@DefineSrvCommand(srv,"log")
+class cmd_log(object):
     """
-    trace/tr [COUNT]: log instructions and operand values while continuing emulation until
+    log [COUNT]: log instructions and operand values while continuing emulation until
     a breakpoint or watchpoint is reached or until COUNT instructions have been emulated
     if provided.
     """
@@ -416,7 +548,65 @@ class cmd_trace(object):
                                            ", ".join(ops_v)))
                 if count >= limit:
                     break
-            srv.msgs.put("traced %d instruction in server's log (INFO level)"%count)
+            srv.msgs.put("logged %d instruction in server's log (INFO level)"%count)
+        else:
+            srv.msgs.put('error: no task loaded')
+        return 0
+
+
+# -----------------------------------------------------------------------------
+
+
+@DefineSrvCommand(srv,"trace",["tr"])
+class cmd_trace(object):
+    """
+    trace/tr EXPR [{actions}] [# filename]: insert a tracepoint that will trigger
+    actions upon EXPR.
+
+    If EXPR is a constant (or evaluates to a constant), the trace condition
+    is assumed to be "pc == EXPR".
+    If EXPR is an amoco expression, the trace condition is EXPR.
+
+    {actions} is a list of directives separated by ';'. Each directives is either
+    an 'eval' or a 'set' command. If no actions are defined, the entire state is
+    printed to a file.
+
+    filename is an optional filename where directives (or the full state) are printed.
+    If not provided, stdout is used for any defined directives while a temporary file is
+    created if the full state is printed.
+    """
+
+    @staticmethod
+    def run(srv, args):
+        cmd = args.pop(0)
+        if srv.obj:
+            if len(args)>0:
+                l = ' '.join(args)
+                m = re.search("([^{#]*)([{].*[}])?\s*(#.*)?",l)
+                x = cmd_eval.expr(srv,[m.group(1).strip()])
+                if (actions:=m.group(2)) is not None:
+                    act = []
+                    # remove '{' and '}':
+                    actions = actions.translate({123:32, 125:32}).strip()
+                    # append each action:
+                    for a in actions.split(';'):
+                        a = a.strip()
+                        if a.startswith('set '):
+                            act.append(cmd_eval.expr_set(srv,a[4:]))
+                        elif a.startswith('eval '):
+                            act.append((cmd_eval.expr(srv,a[5:].split()),None))
+                else:
+                    act = None
+                if (filename:=m.group(3)) is not None:
+                    filename = filename.replace('#','').strip()
+                    file = open(filename,'a')
+                else:
+                    file = None
+                res = srv.obj.tracepoint(x,act,file)
+                srv.msgs.put(str(res))
+            else:
+                res = srv.obj.tracepoint()
+                srv.msgs.put(res)
         else:
             srv.msgs.put('error: no task loaded')
         return 0
@@ -427,12 +617,18 @@ class cmd_trace(object):
 
 @DefineSrvCommand(srv,"break",["b"])
 class cmd_break(object):
-    """break/b EXPR: insert breakpoint associated to EXPR.
+    """
+    break/b EXPR: insert breakpoint associated to EXPR.
 
-       If EXPR is a constant (or evaluates to a constant), the break condition
-       is assumed to be "pc == EXPR".
-       If EXPR is an amoco expression, the break condition is EXPR.
-       This allows to break on any *state* condition like "eax + ebx == 3".
+    If EXPR is a constant (or evaluates to a constant), the break condition
+    is assumed to be "pc == EXPR".
+    If EXPR is an amoco expression, the break condition is EXPR.
+    This allows to break on any *state* condition like "eax + ebx == 3".
+    If EXPR is a JSON-formated string i.{'mnemonic':'...',
+                                         'dst':'...',
+                                         'src':'...'} the break occurs on
+    any instruction matching mnemonic (from cpu's spec) and/or dst and/or
+    src operands symbolic expressions.
     """
 
     @staticmethod
@@ -440,7 +636,11 @@ class cmd_break(object):
         cmd = args.pop(0)
         if srv.obj:
             if args:
-                res = srv.obj.breakpoint(cmd_eval.expr(srv,args))
+                if len(args)==1 and args[0].startswith('i.'):
+                    kargs = cmd_eval.expr(srv,[args[0][2:]])
+                    res = srv.obj.ibreakpoint(**kargs)
+                else:
+                    res = srv.obj.breakpoint(cmd_eval.expr(srv,args))
                 srv.msgs.put(str(res))
             else:
                 res = srv.obj.breakpoint()
@@ -455,15 +655,16 @@ class cmd_break(object):
 
 @DefineSrvCommand(srv,"watch",["w"])
 class cmd_watch(object):
-    """watch/w EXPR: insert watchpoint associated to EXPR.
+    """
+    watch/w EXPR: insert watchpoint associated to EXPR.
 
-       The instruction iterator will break if EXPR changes.
-       If EXPR is a constant (or evaluates to a constant), the watch condition
-       is assumed to be "mem(EXPR,8)".
-       If EXPR is an amoco expression, the watch condition is EXPR.
-       This allows to watch any *state* condition like "eax + ebx".
-       The iterator will break if the watch condition evaluation changes from
-       the value it had when the watchpoint was created.
+    The instruction iterator will break if EXPR changes.
+    If EXPR is a constant (or evaluates to a constant), the watch condition
+    is assumed to be "mem(EXPR,8)".
+    If EXPR is an amoco expression, the watch condition is EXPR.
+    This allows to watch any *state* condition like "eax + ebx".
+    The iterator will break if the watch condition evaluation changes from
+    the value it had when the watchpoint was created.
     """
 
     @staticmethod
@@ -490,9 +691,10 @@ class cmd_watch(object):
 
 @DefineSrvCommand(srv,"clear",["cl"])
 class cmd_clear(object):
-    """clear/cl INDEX: remove breakpoint or watchpoint hook number INDEX.
+    """
+    clear/cl INDEX: remove breakpoint or watchpoint hook number INDEX.
 
-       If INDEX is "all", then removes every hook.
+    If INDEX is "all", then removes every hook.
     """
 
     @staticmethod
@@ -503,6 +705,7 @@ class cmd_clear(object):
                 index = args.pop(0)
                 if index.lower() == 'all':
                     srv.obj.hooks = []
+                    return 0
                 if 0<=int(index,0)<len(srv.obj.hooks):
                     res = srv.obj.hooks.pop(int(index,0)).__doc__
                 else:

@@ -477,6 +477,7 @@ def i_HSW(i, fmap):
 @_pc
 def i_SHR(i, fmap):
     shift, src = i.operands[0:2]
+    dst = None
     if len(i.operands) == 3:
         dst = i.operands[2]
     if shift._is_reg:
@@ -490,12 +491,14 @@ def i_SHR(i, fmap):
         fmap[Z] = r == 0
         fmap[S] = r.bit(r.size - 1)
         fmap[OV] = bit0
-        fmap[dst] = x
+        if dst is not None:
+            fmap[dst] = x
 
 
 @_pc
 def i_SHL(i, fmap):
     shift, src = i.operands[0:2]
+    dst = None
     if len(i.operands) == 3:
         dst = i.operands[2]
     if shift._is_reg:
@@ -509,7 +512,8 @@ def i_SHL(i, fmap):
         fmap[Z] = r == 0
         fmap[S] = r.bit(r.size - 1)
         fmap[OV] = bit0
-        fmap[dst] = x
+        if dst is not None:
+            fmap[dst] = x
 
 
 # conditionals :

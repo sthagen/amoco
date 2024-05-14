@@ -21,7 +21,7 @@ disassemble = disassembler([spec], iclass=instruction_dwarf)
 disassemble.maxlen = 21
 
 
-def PC():
+def PC(state=None):
     return op_ptr
 
 
