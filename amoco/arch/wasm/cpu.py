@@ -27,7 +27,7 @@ disassemble = disassembler([spec], iclass=instruction_wasm)
 disassemble.maxlen = 16
 
 
-def PC():
+def PC(state=None):
     return op_ptr
 
 

@@ -22,7 +22,7 @@ from amoco.arch.eBPF import spec_bpf
 disassemble = disassembler([spec_bpf], iclass=instruction_BPF)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

@@ -1,5 +1,3 @@
-import pytest
-
 from amoco.cas.mapper import *
 
 conf.Cas.complexity = 0

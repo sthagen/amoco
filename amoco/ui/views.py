@@ -31,7 +31,7 @@ from amoco.logger import Log
 logger = Log(__name__)
 logger.debug("loading module")
 
-from amoco.cas.expressions import regtype
+from amoco.cas.expressions import regtype,et_vrb
 from amoco.ui.graphics import Engine
 from amoco.ui.render import Token, vltable, tokenrow, icons
 
@@ -113,7 +113,15 @@ class dataView(View):
 
     A dataView specializes :class:`View` by implementing the _vltable method
     which allows to pretty print (with pygments' highlight) the hexdump of the
-    associated file/stream bytes.
+    associated DataIO object (ie file/stream bytes.)
+
+    Args:
+        of: the DataIO to be viewed.
+
+    Attributes:
+        cur: the current byte offset in the DataIO
+        nbb: the number of bytes per line in the view
+        nbl: the number of lines in the view
     """
 
     def __init__(self, dataio):
@@ -123,6 +131,10 @@ class dataView(View):
         self.nbl = 16
 
     def hexdump(self,cur=None,nbb=None,nbl=None):
+        """
+        Output the vltable of the hexdump of the DataIO from
+        cur offset with nbl lines of nbb bytes.
+        """
         if cur is None: cur=self.cur
         if nbb is None: nbb=self.nbb
         if nbl is None: nbl=self.nbl
@@ -148,7 +160,8 @@ class dataView(View):
     def _vltable(self, **kargs):
         t = vltable(**kargs)
         t.rowparams["sep"] = icons.sep
-        # ....
+        # TODO wanted output:
+        # binwalk stuff, entropy, IC, histogram(s), ...
         return t
 
 
@@ -304,7 +317,11 @@ class funcView(View):
         w = t.width
         th = "[func %s, signature: %s]"
         t.header = (th % (self.of, self.of.sig())).ljust(w, icons.hor)
+        for b in self.of.blocks():
+            t.rows.extend(b.view.rows)
         t.footer = icons.hor * w
+        t.update()
+        return t
 
 
 # -------------------------------------------------------------------------------
@@ -315,11 +332,23 @@ class xfuncView(View):
     def __init__(self, xfunc):
         super().__init__(of=xfunc)
 
+    def _vltable(self, **kargs):
+        t = vltable(**kargs)
+        w = t.width
+        th = "[xfunc %s, signature: %s]"
+        t.header = (th % (self.of, self.of.sig())).ljust(w, icons.hor)
+        t.footer = icons.hor * w
+        return t
+
 
 # -------------------------------------------------------------------------------
 
 
 class execView(View):
+    """Class that implements view of objects that inherit from CoreExec (tasks).
+    An execView additionnally implements the _vltable method which allows to
+    pretty print various tasks' properties or expressions' from current state.
+    """
 
     def __init__(self,of):
         super().__init__(of)
@@ -331,12 +360,15 @@ class execView(View):
     def title(self,more=None):
         t = vltable()
         t.rowparams["sep"] = icons.tri
+        name = self.of.__module__
+        if name.endswith('__main__'):
+            name = self.of.__class__.__name__
         t.addrow([(Token.Column,''),
                   (Token.String, self.of.bin.filename),
                   (Token.Column,''),
                   (Token.Address, self.of.bin.__class__.__name__),
                   (Token.Column,''),
-                  (Token.Address, self.of.__module__)])
+                  (Token.Address, name)])
         if not more and hasattr(self.of, "title_info"):
             more = [(Token.Alert,x) for x in self.of.title_info()]
         if more:
@@ -387,7 +419,7 @@ class execView(View):
                             val.extend(_s.toks())
                             val.append((Token.Literal, ':'))
                             val.extend(self.of.state(_s).toks())
-                            val.append((Token.Literal, ' | '))
+                            val.append((Token.Literal, icons.sep))
                     val.pop()
                     val.append((Token.Literal,' ]'))
                 elif not _r.etype & regtype.OTHER:
@@ -409,7 +441,10 @@ class execView(View):
         if isinstance(start,int):
             start = self.of.cpu.cst(start,size=aw)
         if hasattr(start,'etype'):
-            cur = self.of.cpu.mem(start,size=w)
+            if start._is_mem:
+                cur = start
+            else:
+                cur = self.of.cpu.mem(start,size=w)
         for i in range(nbl):
             r = cur.a.toks() + [(Token.Column,""), (Token.Literal, icons.ver+" ")]
             for j in range(nbc):
@@ -421,12 +456,21 @@ class execView(View):
         return t
 
     def code(self,blk):
+        """
+        Enhance a code block with info from the task/OS.
+        This allows any symbol associated with an address/constant to
+        be displayed as comment, optionally adds the segment name
+        (ie ELF section name) to the location if found.
+        """
         if not isinstance(blk,vltable):
             T = blk.view._vltable()
         else:
             T = blk
-        for r in T.rows:
+        for i,r in enumerate(T.rows):
             for c in r.cols[2:]: #skip address and bytecode columns
+                address = int(r.cols[0][0][1],0)
+                if (name:=self.of.symbol_for(address)):
+                    r.label = (Token.Name, name)
                 for i in range(len(c)-1,-1,-1):
                     tn,tv = c[i]
                     # we take 1st level token id. For example,
@@ -436,7 +480,7 @@ class execView(View):
                     tn = tn[1]
                     if tn == Token.Memory:
                         tn = Token.Address
-                        tv = re.findall(r'\[(0x[0-9a-zA-Z]+)\]',tv)
+                        tv = re.findall(r'(0x[0-9a-zA-Z]+)',tv)
                         if len(tv)==1:
                             tv = tv[0]
                         else:
@@ -455,7 +499,6 @@ class execView(View):
                             c.insert(i+1,(tn,tv))
             if conf.Code.segment:
                 try:
-                    address = int(r.cols[0][0][1],0)
                     segname = self.of.segment_for(address)
                 except ValueError:
                     segname = None
@@ -466,6 +509,9 @@ class execView(View):
                         tn = Token.Segment
                     r.cols[0].insert(1,(tn,segname))
         T.update()
+        if len(T.rows)>conf.Code.lines:
+            T.rows = T.rows[:conf.Code.lines]
+            T.addrow([(Token.Literal,icons.dots)])
         if conf.Code.bytecode:
             pad = conf.Code.padding
             T.colsize[1] += pad
@@ -520,14 +566,20 @@ class emulView(View):
         here = self.of.task.state(self.of.pc)
         T = vltable()
         flavor = None
-        blk = self.of.sa.iterblocks(here)
+        blk = self.of.sa.iterblocks()
         try:
             b = next(blk)
         except StopIteration:
             b = None
             logger.warning("no block at address %s"%here)
         else:
+            try:
+                nextb = next(blk)
+            except StopIteration:
+                nextb = None
             blk.close()
+        self.of.block_cur = b
+        self.of.block_nxt = nextb
         if b is not None:
             delay_slot = False
             for i in b.instr:
@@ -541,6 +593,11 @@ class emulView(View):
                 else:
                     flavor = None
                 T.addrow(blockView.instr(i, flavor))
+            if nextb is not None:
+                for i in nextb.instr:
+                    if len(T.rows)>(conf.Code.lines-conf.Code.hist):
+                        break
+                    T.addrow(blockView.instr(i))
         for index in range(1,conf.Code.hist+1):
             try:
                 i = self.of.hist[-index]
@@ -556,37 +613,60 @@ class emulView(View):
         rest = self.term.width - T.width
         T.addcolsize(-1,rest)
         t.append(str(T))
+        if hasattr(self.of.task,"helper_code"):
+            infos = self.of.task.helper_code()
+            if 'cs_base' in infos:
+                base = infos['cs_base']
+                t[0] = self.line("code (cs_base: %s)"%base)
         return t
 
     def frame_stack(self):
         t = []
         t.append(self.line("stack"))
+        table = None
+        flag_more = False
         sp = []
         for x in self.of.task.cpu.registers:
             if x.etype & regtype.STACK:
                 v = self.of.task.state(x)
-                if v!=0:
-                    sp.append(v)
+                sp.append(v)
+        # size of stacks' elements:
         sz = self.of.pc.length
-        # if we have more than 1 stack registers (ebp, esp)
-        if len(sp)==2:
-            delta = sp[1]-sp[0]
-            if delta._is_cst:
-                delta = delta.value
-                if delta<0:
-                    sp = [sp[1],sp[0]]
-                    delta = -delta
-                elif delta==0:
-                    delta = 8
-                elif delta>conf.Emu.stacksize:
-                    delta = conf.Emu.stacksize
-            else:
-                delta = conf.Emu.stacksize
-            t.append(str(self.of.task.view.memory(sp[0],delta//sz)))
-        elif len(sp)==1:
-            t.append(str(self.of.task.view.memory(sp[0],sz)))
-        else:
+        if len(sp)==0:
             logger.warning("stack pointer not found")
+            return t
+        delta = conf.Emu.stacksize
+        # if we have more than 1 stack registers (like esp, ebp)
+        # top of stack (esp) MUST appear *before* base (ebp)
+        # we can adjust delta to show the full strack frame:
+        if len(sp)==2:
+            base = sp[1]
+            if base.etype&et_vrb and base._is_cst and base.value!=0:
+                delta = base-sp[0]
+                if delta._is_cst:
+                    delta = delta.value
+                if delta<0:
+                    logger.warning("empty stack")
+                if delta>conf.Emu.stacksize:
+                    flag_more = True
+                    delta = conf.Emu.stacksize
+        # if a stack helper is defined in the task object, we
+        # let it possibly adjust sp expression, delta, sz, or add
+        # some info in the output.
+        if hasattr(self.of.task,"helper_stack"):
+            sp,delta,sz,info = self.of.task.helper_stack(sp,delta)
+            t[0] = self.line("stack (%s)"%info)
+        else:
+            sp = sp[0]
+        if not (sp._is_cst and sp.value==0):
+            table = self.of.task.view.memory(sp,delta//sz)
+            if conf.Emu.stackdown:
+                table.rows = table.rows[::-1]
+            t.append(str(table))
+            if conf.Emu.stackdown and flag_more:
+                t.insert(1,icons.dots)
+            elif flag_more:
+                t.append(icons.dots)
         return t
 
     def __str__(self):

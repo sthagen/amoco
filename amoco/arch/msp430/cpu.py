@@ -23,7 +23,7 @@ disassemble = disassembler([spec_msp430], iclass=instruction_msp430)
 disassemble.maxlen = 6
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

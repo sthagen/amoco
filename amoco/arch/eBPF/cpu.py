@@ -21,7 +21,7 @@ from amoco.arch.eBPF import spec
 disassemble = disassembler([spec], iclass=instruction_eBPF)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

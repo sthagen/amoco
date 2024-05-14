@@ -65,10 +65,10 @@ class COFF(BinFormat):
     def dataio(self):
         return self.__file
 
-    def __init__(self, f):
+    def __init__(self, f,offset=0):
         self.__file = f
-        self.Fhdr = FILEHDR(f)
-        offset = self.Fhdr.size()
+        self.Fhdr = FILEHDR(f,offset)
+        offset += self.Fhdr.size()
         offmax = f.size()-1
         if self.Fhdr.f_opthdr > 0:
             sz = self.Fhdr.f_opthdr
@@ -79,6 +79,8 @@ class COFF(BinFormat):
                 self.OptHdr = f[offset:offset+sz]
             offset += sz
         self.Shdr = []
+        self.symbols = []
+        self.strings = b''
         # read sections headers:
         for _ in range(self.Fhdr.f_nscns):
             s = SCNHDR(f,offset)
@@ -88,7 +90,6 @@ class COFF(BinFormat):
                 logger.warn("no symbol/string tables found")
                 return
         # read symbol table
-        self.symbols = []
         for _ in range(self.Fhdr.f_nsyms):
             e = SYMENT(f,offset)
             self.symbols.append(e)
@@ -99,7 +100,6 @@ class COFF(BinFormat):
         # read string table
         if offset+4>=offmax:
             logger.warn("no string table found")
-            self.strings = b''
             return
         try:
             sz = struct.unpack("<I",f[offset:offset+4])[0]
@@ -133,7 +133,7 @@ class COFF(BinFormat):
             ss.append("---")
             e.pfx = tmp
         ss += ["\nStrings:"]
-        ss.extend(self.strings)
+        ss.extend([str(s) for s in self.strings])
         return "\n".join(ss)
 
 # ------------------------------------------------------------------------------
@@ -151,18 +151,21 @@ H : f_flags
 """
 )
 class FILEHDR(StructFormatter):
-    def __init__(self, data=None):
+    def __init__(self, data=None,offset=0):
         self.name_formatter("f_magic")
         self.func_formatter(f_timdat=token_datetime_fmt)
         self.flag_formatter("f_flags")
         if data:
-            self.unpack(data)
+            self.unpack(data,offset)
+            if not self.f_magic in Consts.All["FILEHDR.f_magic"]:
+                raise COFFError("not a known COFF header.f_magic")
 
 # legal values for f_magic (object file type):
-with Consts("f_magic"):
+with Consts("FILEHDR.f_magic"):
     I386MAGIC     = 0x14c
     I386PTXMAGIC  = 0x154
     I386AIXMAGIC  = 0x175
+    IMAGIC        = 0o413      # ROM
     LYNXCOFFMAGIC = 0o415      # LynxOS executables
     OCOFFMAGIC    = 0o514      # I386/LynxOS objects 
     MCOFFMAGIC    = 0o520      # Motorola

@@ -84,14 +84,18 @@ class lsweep(object):
         if loc is None:
             try:
                 m = p.state
-                loc = m(p.cpu.PC())
+                loc = p.cpu.PC(m)
+                vaddr = m(p.cpu.PC())
             except (TypeError, ValueError):
                 loc = 0
+        else:
+            vaddr = loc
         while True:
-            i = p.read_instruction(loc)
+            i = p.read_instruction(loc,label=vaddr)
             if i is None:
                 break
             loc += i.length
+            vaddr += i.length
             yield i
 
     def iterblocks(self, loc=None):

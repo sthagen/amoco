@@ -1,5 +1,3 @@
-import pytest
-
 from amoco.config import conf
 conf.UI.formatter = 'Null'
 conf.Cas.unicode = False
@@ -23,7 +21,7 @@ def test_decoder_001():
   op1 = i.operands[0]
   assert str(op1)=='eax'
   op2 = i.operands[1]
-  assert str(op2)=='M32(eax+16)'
+  assert str(op2)=='M32ds(eax+16)'
   p1 = i.operands[0]
 
 # callf [ebx+eax*8+0x01eb6788]
@@ -31,7 +29,11 @@ def test_decoder_002():
   c = b'\xff\x9c\xc3\x88\x67\xeb\x01'
   i = cpu.disassemble(c)
   op1 = i.operands[0]
-  assert str(op1)=='M48(((eax*0x8)+ebx)+32204680)'
+  assert str(op1)=='M48ds(((eax*0x8)+ebx)+32204680)'
+  c = b'\x66\xff\x9c\xc3\x88\x67\xeb\x01'
+  i = cpu.disassemble(c)
+  op1 = i.operands[0]
+  assert op1.size==32
 
 # jmp 0xc (relative to current eip!)
 def test_decoder_003():
@@ -45,7 +47,7 @@ def test_decoder_004():
   c = b'\x8b\x14\x85\x00\xbd\x05\x08'
   i = cpu.disassemble(c)
   op2 = i.operands[1]
-  assert str(op2)=='M32((eax*0x4)+134593792)'
+  assert str(op2)=='M32ds((eax*0x4)+134593792)'
 
 # les eax,[ebp+edi+0x70a310d3]
 def test_decoder_005():
@@ -62,7 +64,7 @@ def test_decoder_006():
   assert op1.x.ref=='ebx'
   assert str(op1)=='bl'
   op2 = i.operands[1]
-  assert str(op2)=='M8(0x39a3ac2d)'
+  assert str(op2)=='M8ds(0x39a3ac2d)'
 
 # imul ebp,ecx,0xc23d
 def test_decoder_007():
@@ -78,14 +80,14 @@ def test_decoder_008():
   op1 = i.operands[0]
   assert str(op1)=='dh'
   op2 = i.operands[1]
-  assert str(op2)=='M8(ebp+604277194)'
+  assert str(op2)=='M8ds(ebp+604277194)'
 
 # add [eax],al
 def test_decoder_009():
   c = b'\x00\x00'
   i = cpu.disassemble(c)
   op1 = i.operands[0]
-  assert str(op1)=='M8(eax)'
+  assert str(op1)=='M8ds(eax)'
   op2 = i.operands[1]
   assert str(op2)=='al'
 
@@ -101,7 +103,7 @@ def test_decoder_011():
   c = b'\x0f\xb6\x90\x3c\xb1\x05\x08'
   i = cpu.disassemble(c)
   op1 = i.operands[0];  op2 = i.operands[1]
-  assert str(op1)=='edx' and str(op2)=='M8(eax+134590780)'
+  assert str(op1)=='edx' and str(op2)=='M8ds(eax+134590780)'
 
 # ror cs:[edi],0x8f
 def test_decoder_012():
@@ -125,22 +127,22 @@ def test_decoder_013():
 def test_decoder_014():
   c = b'\xd8\xe5'
   i = cpu.disassemble(c)
-  #op1 = i.operands[0];  op2 = i.operands[1]
-  #assert str(op1)=='st0' and str(op2)=='st5' and op1.size==80 and op2.size==80
+  op1 = i.operands[0];  op2 = i.operands[1]
+  assert str(op1)=='st0' and str(op2)=='st5' and op1.size==80 and op2.size==80
 
 # dec [edx+0x6153e80e]
 def test_decoder_015():
   c = b'\xfe\x8a\x0e\xe8\x53\x61'
   i = cpu.disassemble(c)
   op1 = i.operands[0]
-  assert str(op1)=='M8(edx+1632888846)'
+  assert str(op1)=='M8ds(edx+1632888846)'
 
 # fistp word [ebx+edi*8]
 def test_decoder_016():
   c = b'\xdf\x1c\xfb'
   i = cpu.disassemble(c)
-  #op1 = i.operands[0]
-  #assert str(op1)=='M16((ebx + (edi * 0x8)))'
+  op1 = i.operands[0]
+  assert str(op1)=='M16ds((ebx+(edi*0x8)))'
 
 # imul ecx,fs:[edx-0x2893a953],0x82da771e
 def test_decoder_017():
@@ -154,26 +156,26 @@ def test_decoder_018():
   c = b'\xdc\x29'
   i = cpu.disassemble(c)
   op1 = i.operands[0]
-  assert str(op1)=='M64(ecx)'
+  assert str(op1)=='M64ds(ecx)'
 
 # cmpxchg8b qword ptr [ecx]
 def test_decoder_019():
   c = b'\x0f\xc7\x09'
   i = cpu.disassemble(c)
-  assert str(i.operands[0])=='M64(ecx)'
+  assert str(i.operands[0])=='M64ds(ecx)'
 
 # movzx eax, byte ptr [eax+0x806fb088]
 def test_decoder_020():
   c = b'\x0f\xb6\x80\x88\xb0\x6f\x80'
   i = cpu.disassemble(c)
-  assert str(i.operands[1])=='M8(eax-2140163960)'
+  assert str(i.operands[1])=='M8ds(eax-2140163960)'
   assert i.toks()[-1][1] == 'byte ptr [eax+0x806fb088]'
 
 # mov eax, [esp-300]
 def test_decoder_021():
   c = b'\x8b\x84\x24\xd4\xfe\xff\xff'
   i = cpu.disassemble(c)
-  assert str(i.operands[1])=='M32(esp-300)'
+  assert str(i.operands[1])=='M32ds(esp-300)'
   assert i.toks()[-1][1] == '[esp-300]'
 
 # cvtss2sd [ebp-16], xmm0
@@ -252,7 +254,7 @@ def test_pickle_instruction():
   pickler = lambda x: pickle.dumps(x,2)
   c = b'\xff\x9c\xc3\x88\x67\xeb\x01'
   i = cpu.disassemble(c)
-  i.address = cst(0x1000,32)
+  i.address = cpu.cst(0x1000,32)
   p = pickler(i)
   j = pickle.loads(p)
   assert str(j)==str(i)
@@ -264,7 +266,7 @@ def test_asm_000(amap):
   c = b'\x90'
   i = cpu.disassemble(c,address=0)
   # fake eip cst:
-  amap[eip] = cst(0,32)
+  amap[eip] = cpu.cst(0,32)
   i(amap)
   assert str(amap(eip))=='0x1'
 
@@ -284,16 +286,16 @@ def test_asm_002(amap):
   assert str(amap)=='''\
 eip <- { | [0:32]->0x3 | }
 esp <- { | [0:32]->(ebp+0x4) | }
-ebp <- { | [0:32]->M32(ebp) | }'''
+ebp <- { | [0:32]->M32ss(ebp) | }'''
 
 # ret
 def test_asm_003(amap):
   c = b'\xc3'
   i = cpu.disassemble(c,address=0)
   i(amap)
-  assert str(amap(eip))=='M32(ebp+4)'
-  assert str(amap(esp))=='(ebp+0x8)'
-  assert str(amap(ebp))=='M32(ebp)'
+  assert str(amap(cpu.eip))=='M32ss(ebp+4)'
+  assert str(amap(cpu.esp))=='(ebp+0x8)'
+  assert str(amap(cpu.ebp))=='M32ss(ebp)'
 
 # hlt
 def test_asm_004(amap):
@@ -301,7 +303,7 @@ def test_asm_004(amap):
   i = cpu.disassemble(c,address=0)
   i(amap)
   assert i.mnemonic=='HLT'
-  assert amap(eip)==top(32)
+  assert amap(eip)==cpu.top(32)
 
 # int3
 def test_asm_005(amap):
@@ -380,7 +382,7 @@ def test_asm_013(amap):
   c = b'\xff\x25\xe8\xb0\x05\x08'
   i = cpu.disassemble(c,address=0)
   i(amap)
-  assert amap(eip)==mem(cst(0x805b0e8))
+  assert amap(eip)==mem(cst(0x805b0e8),seg=ds)
 
 # retn 0xc
 def test_asm_014(amap):
@@ -417,7 +419,7 @@ def test_asm_018(amap):
   i = cpu.disassemble(c,address=0)
   amap.clear()
   i(amap)
-  assert str(amap(eax))=='M32(eax+16)'
+  assert str(amap(eax))=='M32ds(eax+16)'
 
 # movsx edx,al
 def test_asm_019(amap):
@@ -425,7 +427,7 @@ def test_asm_019(amap):
   i = cpu.disassemble(c,address=0)
   i(amap)
   assert amap(edx)[0:8]==amap(al)
-  assert str(amap(edx)[8:32])=='(M8(eax+16)[7:8] ? -0x1 : 0x0)'
+  assert str(amap(edx)[8:32])=='(M8ds(eax+16)[7:8] ? -0x1 : 0x0)'
 
 # movzx edx,[eax+0x0805b13c]
 def test_asm_020(amap):
@@ -439,7 +441,7 @@ def test_asm_021(amap):
   c = b'\x00\x00'
   i = cpu.disassemble(c,address=0)
   i(amap)
-  assert str(amap(mem(eax,8)))=='(M8(M32(eax+16))+M8(eax+16))'
+  assert str(amap(mem(eax,8)))=='(M8ds(M32ds(eax+16))+M8ds(eax+16))'
 
 # sub [edx+esi-0x43aa74b0], cl
 def test_asm_022(amap):
@@ -447,7 +449,7 @@ def test_asm_022(amap):
   i = cpu.disassemble(c,address=0)
   i(amap)
   loc = ptr(amap(edx)+esi,disp=-0x43aa74b0)
-  assert str(amap[mem(loc,8)])=='((-cl)+M8(({ | [0:8]->M8(M32(eax+16)+134590780) | [8:32]->0x0 | }+esi)-1135244464))'
+  assert str(amap[mem(loc,8)])=='((-cl)+M8ds(({ | [0:8]->M8ds(M32ds(eax+16)+134590780) | [8:32]->0x0 | }+esi)-1135244464))'
 
 # and ebp,[edi-0x18]
 def test_asm_023(amap):
@@ -455,7 +457,7 @@ def test_asm_023(amap):
   i = cpu.disassemble(c,address=0)
   amap.clear()
   i(amap)
-  assert amap(ebp)==ebp&mem(edi,32,disp=-0x18)
+  assert amap(ebp)==ebp&mem(edi,32,disp=-0x18,seg=ds)
 
 # and esp,0xfffffff0
 def test_asm_024(amap):
@@ -478,7 +480,7 @@ def test_asm_026(amap):
   c = b'\x33\x55\xe4'
   i = cpu.disassemble(c,address=0)
   i(amap)
-  assert amap(edx)==edx^amap(mem(ebp,32,disp=-0x1c))
+  assert amap(edx)==edx^amap(mem(ebp,32,disp=-0x1c,seg=ds))
 
 # cmp edx,0
 def test_asm_027(amap):
@@ -511,7 +513,7 @@ def test_asm_031(amap):
   c = b'\x8d\x02\xc3'
   i = cpu.disassemble(c,address=0)
   i(amap)
-  assert str(amap(eax))=='(edx)'
+  assert str(amap(eax))=='edx'
 
 # pop esp
 def test_asm_032(amap):

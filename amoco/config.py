@@ -98,6 +98,7 @@ class Code(Configurable):
         padding (int): add space-padding bytes to bytecode (default=4).
         hist (int): number of history instructions to show in
                     emulator's code frame view.
+        lines (int): max number of displayed instruction (default=11).
     """
     helper = Bool(True, config=True)
     header = Bool(True, config=True)
@@ -106,6 +107,7 @@ class Code(Configurable):
     segment = Bool(True, config=True)
     padding = Integer(4, config=True)
     hist = Integer(3, config=True)
+    lines = Integer(11, config=True)
 
 
 class Cas(Configurable):
@@ -155,6 +157,7 @@ class UI(Configurable):
         console (str): default python console, either 'python' (default) or 'ipython'.
         completekey (str): client key for command completion (Tab).
         cli (str): client frontend. Currently only 'cmdcli' is supported.
+        unicode (Bool): use unicode icons (default to False)
         qstylesheet (str):  Qt stylesheet filename (default to "").
     """
     formatter = Unicode("Null", config=True)
@@ -212,9 +215,13 @@ class Emu(Configurable):
     Attributes:
         hist (int): size of the emulated instruction history list (defaults to 100.)
         stacksize (int): max-size of the stack frame displayed by the emulator (defaults to 256.)
+        stackdown (Bool): show the stack frame with top of stack at the bottom.
+        safe (Bool): use mapper.safe_upate to change state *only* if no exception occurs.
     """
     hist = Integer(100, config=True)
     stacksize = Integer(256, config=True)
+    stackdown = Bool(True, config=True)
+    safe = Bool(True, config=True)
 
 
 class System(Configurable):

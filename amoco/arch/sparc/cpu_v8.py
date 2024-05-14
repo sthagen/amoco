@@ -22,7 +22,7 @@ from amoco.arch.sparc import spec_v8
 disassemble = disassembler([spec_v8], endian=lambda: -1, iclass=instruction_sparc)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

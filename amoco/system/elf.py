@@ -318,6 +318,8 @@ class Elf(BinFormat):
             rcls = Rel
         elif section.sh_type == SHT_RELA:
             rcls = Rela
+        else:
+            raise ElfError("bad relocation type")
         for i in range(n):
             reltab.append(rcls(data, offset, lbe, x64))
             offset += l

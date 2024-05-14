@@ -103,7 +103,7 @@ def spawn_emul(ctx,fallback=True):
     s = srv(obj=p)
     s.start(daemon=False)
     if fallback:
-        spawn_console(ctx,["p"])
+        spawn_console(ctx,["print('p = %s'%p)","p"])
 
 
 def spawn_gui(ctx):
@@ -160,15 +160,16 @@ def cli(ctx, verbose, debug, quiet, configfile):
 
 @cli.command("load_program")
 @click.option("-x", "--gui", is_flag=True, default=False, help="load with GUI")
+@click.option("-l", "--loader", type=click.STRING)
 @click.argument("filename", nargs=1, type=click.Path(exists=True, dir_okay=False))
 @click.pass_context
-def load_program(ctx, filename, gui):
-    p = amoco.load_program(filename)
+def load_program(ctx, filename, gui, loader):
+    p = amoco.load_program(filename,loader=loader)
     ctx.obj["p"] = p
     if gui:
         spawn_gui(ctx)
     else:
-        spawn_console(ctx,["p"])
+        spawn_console(ctx,["print('p = %s'%p)","p"])
 
 @cli.command("bin_info")
 @click.argument("filename", nargs=1, type=click.Path(exists=True, dir_okay=False))
@@ -187,14 +188,19 @@ def bin_info(ctx, filename, header):
     spawn_console(ctx)
 
 @cli.command("emul_program")
-@click.argument("filename", nargs=1, type=click.Path(exists=True, dir_okay=False))
 @click.option("-x", "--gui", is_flag=True, default=False, help="load with GUI")
 @click.option("-i", "--interact", is_flag=True, default=False,
               help="fallback to python interactive console")
+@click.option("-l", "--loader", type=click.STRING)
+@click.argument("filename", nargs=1, type=click.Path(exists=True, dir_okay=False))
 @click.pass_context
-def emul_program(ctx, filename, gui, interact):
-    p = amoco.load_program(filename)
-    p = amoco.emul(p)
+def emul_program(ctx, filename, gui, interact, loader):
+    p = amoco.load_program(filename,loader=loader)
+    if p is not None:
+        p = amoco.emul(p)
+    else:
+        click.secho("failed to load program",fg='red')
+        return
     ctx.obj["p"] = p
     if gui:
         spawn_gui(ctx)

@@ -284,6 +284,8 @@ class UnionDefine(StructDefine):
             cls.union = s.index(max(s))
         except AttributeError:
             pass
+        cls.packed = self.packed
+        cls.fkeys = defaultdict(default_formatter)
         return cls
 
 
@@ -371,3 +373,9 @@ def UnionFactory(name, fmt, **kargs):
 
 # ------------------------------------------------------------------------------
 
+# Standard types:
+
+uint8  = TypeDefine("uint8" ,"B")
+uint16 = TypeDefine("uint16","H")
+uint32 = TypeDefine("uint32","I")
+uint64 = TypeDefine("uint64","Q")

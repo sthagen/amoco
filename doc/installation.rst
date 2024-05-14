@@ -18,7 +18,6 @@ Some optional features related to UI and persistence require:
 
 - click_ used to define amoco command-line app
 - blessed_ used for terminal based debugger frontend
-- tqdm_ used for terminal based debugger frontend
 - ply_ for parsing *GNU as* files
 - sqlalchemy_ for persistence of amoco objects in a database
 - pyside2_ for the Qt-based graphical user interface
@@ -37,7 +36,7 @@ If you want to use the graphical interface you will need **all** packages.
 .. _pyparsing: https://pypi.org/project/pyparsing/
 .. _z3: http://z3.codeplex.com/
 .. _pygments: http://pygments.org/
-.. _ccrawl: https://github.com/bdcht/ccrawl
+.. _ccrawl: https://github.com/bdcht/ccrawl/
 .. _click: https://click.palletsprojects.com/
 .. _blessed: https://github.com/jquast/blessed
 .. _tqdm: https://github.com/tqdm/tqdm

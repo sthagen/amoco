@@ -1,4 +1,3 @@
-import pytest
 from amoco.cas.mapper import mapper
 from amoco.arch.x64 import cpu_x64 as cpu
 from amoco.arch.x64.env import *

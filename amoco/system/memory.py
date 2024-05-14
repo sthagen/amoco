@@ -27,7 +27,7 @@ such area with a new value.
 
 For example, imagine that memory offset 0x1000
 initially contains bytes b'01020304' and an instruction writes the symbolic
-expression of register 'eax' to address 0x102. The resulting memory should be
+expression of register 'eax' to address 0x1002. The resulting memory should be
 described such that if an instruction fetches 2 bytes from offset
 0x1001 the result is a compound expression with first byte '02' and second
 byte eax[0:8] in little endian or eax[24:32] in big endian.
@@ -46,6 +46,7 @@ logger.debug("loading module")
 
 from bisect import bisect_left
 from amoco.cas.expressions import exp
+from amoco.cas.blobs import blob
 from amoco.ui.views import mmapView
 
 # ------------------------------------------------------------------------------
@@ -112,7 +113,7 @@ class MemoryMap(object):
             else:
                 return (r, a)
         else:
-            raise MemoryError(address)
+            raise MemoryMapError(address)
 
     def __len__(self):
         sta, sto = self._zones[None].range()
@@ -126,13 +127,13 @@ class MemoryMap(object):
         if r in self._zones:
             return self._zones[r].read(o, l)
         else:
-            raise MemoryError(address)
+            raise MemoryMapError(address)
 
     def write(self, address, expr, endian=1):
         r, o = self.reference(address)
         if r is not None and not r._is_def:
             # write to undefined (top):
-            raise MemoryError(address)
+            raise MemoryMapError(address)
         if not r in self._zones:
             z = self.newzone(r)
         else:
@@ -271,6 +272,11 @@ class MemoryZone(object):
             vaddr = v0
             i = 0
         ll = l
+        # ok so we want to read ll bytes from i-th MemoryZone starting
+        # at address vaddr, but we have to deal with several cases:
+        # the result may span over several memory objects, so we have
+        # to "fetch" them one by one and deal with possible holes that
+        # we fill with void objects.
         while ll > 0:
             try:
                 data, ll = self._map[i].read(vaddr, ll)
@@ -290,6 +296,10 @@ class MemoryZone(object):
                 res.append(data)
             i += 1
         assert ll == 0
+        # in this class we return the list of memory objects that span
+        # ll bytes starting at vaddr. We may want to make this an expression
+        # and in this case this should be done by the mapper instance or
+        # even at a higher level.
         return res
 
     def read_history(self, vaddr, l):
@@ -439,10 +449,17 @@ class mo(object):
     def __init__(self, vaddr, data, endian=1):
         self.vaddr = vaddr
         self.data = datadiv(data, endian)
+        if isinstance(data,blob) and data.d==1:
+            # the blob should end at vaddr so:
+            self.vaddr -= data.length
 
     @property
     def end(self):
-        return self.vaddr + len(self.data)
+        try:
+            return self.vaddr + len(self.data)
+        except TypeError:
+            # can happen if self.data.val is an infinite blob...
+            return self.vaddr + self.data.val.length
 
     def __contains__(self, vaddr):
         return self.vaddr <= vaddr < self.end
@@ -453,7 +470,10 @@ class mo(object):
             data = data[:32] + "..."
             if self.data._is_raw:
                 data += "'"
-        return "<mo [%08x,%08x] data:%s>" % (self.vaddr, self.end, data)
+        try:
+            return "<mo [%08x,%08x] data:%s>" % (self.vaddr, self.end, data)
+        except TypeError:
+            return "<mo [%s,%s] data:%s>" % (self.vaddr, self.end, data)
 
     def trim(self, vaddr):
         if vaddr in self:
@@ -494,7 +514,7 @@ class datadiv(object):
     A datadiv represents any data within memory, including symbolic expressions.
 
     Args:
-        data   : either a string of bytes or an amoco expression.
+        data   : either a string of bytes, an amoco expression or blob
         endian : either [-1,1], used when data is any symbolic expression.
                  1 is for little-endian, -1 for big-endian.
 
@@ -567,7 +587,10 @@ class datadiv(object):
         except AssertionError:
             logger.error("invalid fetch (o=%s,l=%s) in %s" % (o, l, repr(self)))
             raise ValueError
-        lv = len(self)
+        try:
+            lv = len(self)
+        except TypeError:
+            lv = self.val.length
         if o == 0 and l == lv:
             return (self.val, 0)
         if self._is_raw:
@@ -614,3 +637,6 @@ def mergeparts(P):
         else:
             parts.append(p)
     return parts
+
+class MemoryMapError(Exception):
+    pass

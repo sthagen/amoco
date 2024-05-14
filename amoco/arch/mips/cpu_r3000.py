@@ -24,7 +24,7 @@ endian = lambda: -1
 disassemble = disassembler([spec], iclass=instruction_r3000,endian=endian)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 def get_data_endian():

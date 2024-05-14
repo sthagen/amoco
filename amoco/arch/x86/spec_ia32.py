@@ -65,9 +65,13 @@ def precond_rep(obj):
 def precond_norep(obj):
     return not obj.misc["rep"]
 def precond_opdsz(obj):
+    if env.internals["mode"] == 16:
+        return not obj.misc["opdsz"]
     return obj.misc["opdsz"]
 def precond_noopdsz(obj):
-    return not obj.misc["opdsz"]
+    if env.internals["mode"] == 16:
+        return obj.misc["opdsz"]
+    return (not obj.misc["opdsz"])
 def precond_16bits(obj):
     size = obj.misc["adrsz"] or env.internals["mode"]
     return size==16
@@ -164,6 +168,10 @@ def ia32_nooperand(obj):
 @ispec_ia32(" 8>[ {aa} ]", mnemonic="STOSB", type=type_data_processing)
 @ispec_ia32(" 8>[ {ab} ]", mnemonic="STOSD", type=type_data_processing, __obj=precond_noopdsz)
 @ispec_ia32(" 8>[ {ab} ]", mnemonic="STOSW", type=type_data_processing, __obj=precond_opdsz)
+def ia32_strings(obj):
+    if obj.misc["rep"]:
+        obj.type = type_control_flow
+
 @ispec_ia32(" 8>[ {a6} ]", mnemonic="CMPSB", type=type_data_processing)
 @ispec_ia32(" 8>[ {a7} ]", mnemonic="CMPSD", type=type_data_processing, __obj=precond_noopdsz)
 @ispec_ia32(" 8>[ {a7} ]", mnemonic="CMPSW", type=type_data_processing, __obj=precond_opdsz)
@@ -171,7 +179,7 @@ def ia32_nooperand(obj):
 @ispec_ia32(" 8>[ {af} ]", mnemonic="SCASD", type=type_data_processing, __obj=precond_noopdsz)
 @ispec_ia32(" 8>[ {af} ]", mnemonic="SCASW", type=type_data_processing, __obj=precond_opdsz)
 def ia32_strings(obj):
-    if obj.misc["rep"]:
+    if obj.misc["rep"] or obj.misc['repne']:
         obj.type = type_control_flow
 
 
@@ -210,7 +218,8 @@ def ia32_cb8(obj, cb):
 
 
 # imm16:
-@ispec_ia32("24>[ {c2} iw(16) ]", mnemonic="RETN", type=type_control_flow)
+@ispec_ia32("24>[ {c2} iw(16) ]", mnemonic="RET", type=type_control_flow)
+@ispec_ia32("24>[ {ca} iw(16) ]", mnemonic="RETF", type=type_control_flow)
 def ia32_retn(obj, iw):
     obj.operands = [env.cst(iw, 16)]
 
@@ -341,10 +350,6 @@ def ia32_rm32(obj, Mod, RM, data):
 # r/m32/48
 @ispec_ia32("*>[ {ff} /3     ]", mnemonic="CALLF", type=type_control_flow)
 @ispec_ia32("*>[ {ff} /5     ]", mnemonic="JMPF", type=type_control_flow)
-@ispec_ia32("*>[ {0f}{01} /0 ]", mnemonic="SGDT", type=type_system)
-@ispec_ia32("*>[ {0f}{01} /1 ]", mnemonic="SIDT", type=type_system)
-@ispec_ia32("*>[ {0f}{01} /2 ]", mnemonic="LGDT", type=type_system)
-@ispec_ia32("*>[ {0f}{01} /3 ]", mnemonic="LIDT", type=type_system)
 def ia32_far(obj, Mod, RM, data):
     op1, data = getModRM(obj, Mod, RM, data)
     if op1._is_reg:
@@ -359,11 +364,23 @@ def ia32_op48(obj, Mod, RM, data):
     op1, data = getModRM(obj, Mod, RM, data)
     if op1._is_reg:
         raise InstructionError(obj)
-    op1.size = 32 if obj.misc["opdsz"] == 16 else 48
+    op1.size = obj.misc["opdsz"]
+    obj.operands = [op1]
+
+@ispec_ia32("*>[ {0f}{01} /0 ]", mnemonic="SGDT", type=type_system)
+@ispec_ia32("*>[ {0f}{01} /1 ]", mnemonic="SIDT", type=type_system)
+@ispec_ia32("*>[ {0f}{01} /2 ]", mnemonic="LGDT", type=type_system)
+@ispec_ia32("*>[ {0f}{01} /3 ]", mnemonic="LIDT", type=type_system)
+def ia32_op48(obj, Mod, RM, data):
+    op1, data = getModRM(obj, Mod, RM, data)
+    if op1._is_reg:
+        raise InstructionError(obj)
+    op1.size = 48
     obj.operands = [op1]
 
 
 # r/m16
+@ispec_ia32("*>[ {0f}{00} /0 ]", mnemonic="SLDT", type=type_system)
 @ispec_ia32("*>[ {0f}{00} /1 ]", mnemonic="STR", type=type_system)
 @ispec_ia32("*>[ {0f}{00} /2 ]", mnemonic="LLDT", type=type_system)
 @ispec_ia32("*>[ {0f}{00} /3 ]", mnemonic="LTR", type=type_system)
@@ -438,6 +455,8 @@ def ia32_mov_adr(obj, data, _flg8, _inv):
     op1 = env.getreg(0, opdsz)
     adrsz = obj.misc["adrsz"] or env.internals["mode"]
     seg = obj.misc["segreg"]
+    if seg is None:
+        seg = env.ds
     if data.size < adrsz:
         raise InstructionError(obj)
     moffs8 = env.cst(data[0:adrsz].int(), adrsz)
@@ -766,8 +785,12 @@ def ia32_reg_32_inv(obj, Mod, RM, REG, data):
     op1 = env.getreg(REG, op2.size)
     obj.operands = [op1, op2]
     obj.type = type_data_processing
-    if obj.mnemonic == "LEA" and not op2._is_mem:
-        raise InstructionError(obj)
+    if obj.mnemonic == "LEA":
+        if op2._is_mem:
+            # instruction LEA is agnostic of segmentation
+            op2.a.seg = None
+        else:
+            raise InstructionError(obj)
 
 
 # r16/32 , m16:16/32
@@ -930,20 +953,22 @@ def ia32_xfence(obj, Mod, RM, data):
     obj.operands = []
 
 
-@ispec_ia32("*>[ {0f}{20} /r ]", mnemonic="MOV", _inv=False)
-@ispec_ia32("*>[ {0f}{22} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{20} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{22} /r ]", mnemonic="MOV", _inv=False)
 def ia32_mov_cr(obj, Mod, REG, RM, data, _inv):
     if REG not in (0, 2, 3, 4):
         raise InstructionError(obj)
     op1 = env.cr(REG)
     op2 = env.getreg(RM, 32)
     obj.operands = [op1, op2] if not _inv else [op2, op1]
-    obj.type = type_system
+    obj.type = type_control_flow if not _inv else type_system
 
 
-@ispec_ia32("*>[ {0f}{21} /r ]", mnemonic="MOV", _inv=False)
-@ispec_ia32("*>[ {0f}{23} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{21} /r ]", mnemonic="MOV", _inv=True)
+@ispec_ia32("*>[ {0f}{23} /r ]", mnemonic="MOV", _inv=False)
 def ia32_mov_dr(obj, Mod, REG, RM, data, _inv):
+    if REG not in (0, 1, 2, 3, 6, 7):
+        raise InstructionError(obj)
     op1 = env.dr(REG)
     op2 = env.getreg(RM, 32)
     obj.operands = [op1, op2] if not _inv else [op2, op1]

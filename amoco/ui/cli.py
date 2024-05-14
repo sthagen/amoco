@@ -12,7 +12,6 @@ This module allows to prompt for high-level "amoco" commands defined in the srv 
 It provides a convinient way of emulating a binary from a gdb-like interface rather than
 from the [i]python console. See :mod:`srv` module for details.
 """
-
 import cmd
 import time
 from amoco.config import conf
@@ -24,6 +23,7 @@ logger.debug("loading module")
 
 
 def cmdcli_builder(srv):
+    import readline
     cmdcli = type("cmdcli", (cmdcli_core,), {})
     func = cmdcli.default
     for cname,cdef in srv.cmds.items():
@@ -68,8 +68,8 @@ class cmdcli_core(cmd.Cmd):
     def default(self, line):
         "default command handler will pass line to the server"
         # check if the server is running in its own thread (daemon):
-        if self.srv._srv is not None:
-            # if it is, just end it the line...
+        if self.srv._srv and self.srv._srv.is_alive():
+            # if it is, just send it the line...
             self.srv.ctrl.put(line)
         else:
             # otherwise, the server is just an object in the current

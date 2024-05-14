@@ -20,12 +20,12 @@ def mnemo(i):
     return [(Token.Mnemonic, "{: <12}".format(mnemo.lower()))]
 
 
-def deref(op):
+def deref(op,seg_indicator=""):
     assert op._is_mem
     s = {8: "byte ptr ", 16: "word ptr ", 64: "qword ptr ", 128: "xmmword ptr "}.get(
         op.size, ""
     )
-    s += "%s:" % op.a.seg if (op.a.seg is not None) else ""
+    s += seg_indicator
     b = op.a.base
     if b._is_reg and (b.etype & regtype.STACK):
         base10 = True
@@ -42,7 +42,8 @@ def opers(i):
             if op.a.base._is_reg and op.a.base.etype & regtype.PC:
                 if i.address is not None:
                     op = op.__class__(i.address+i.length+op.a.disp,op.size,seg=op.a.seg)
-            s.append((Token.Memory, deref(op)))
+            indicator = "%s:"%op.a.seg if i.misc["segreg"] is not None else ""
+            s.append((Token.Memory, deref(op,indicator)))
         elif op._is_cst:
             if i.misc["imm_ref"] is not None:
                 s.append((Token.Address, str(i.misc["imm_ref"])))
@@ -52,6 +53,9 @@ def opers(i):
                 s.append((Token.Constant, str(op)))
         elif op._is_reg:
             s.append((Token.Register, str(op)))
+        elif op._is_ptr:
+            indicator = "%s:"%op.seg if op.seg is not None else ""
+            s.append((Token.Constant, "%s%s"%(indicator,op.base)))
         s.append((Token.Literal, ", "))
     if len(s) > 0:
         s.pop()

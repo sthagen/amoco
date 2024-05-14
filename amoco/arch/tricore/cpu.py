@@ -21,7 +21,7 @@ from amoco.arch.tricore import spec
 disassemble = disassembler([spec], iclass=instruction_tricore)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

@@ -1,4 +1,3 @@
-import pytest
 import amoco
 from amoco.sa import *
 

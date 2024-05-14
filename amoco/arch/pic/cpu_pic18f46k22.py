@@ -21,7 +21,7 @@ from amoco.arch.pic.F46K22 import spec_pic18
 disassemble = disassembler([spec_pic18], iclass=instruction_f46k22)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

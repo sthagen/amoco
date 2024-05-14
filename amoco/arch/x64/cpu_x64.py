@@ -19,8 +19,8 @@ disassemble = disassembler([spec_ia32e], iclass=instruction_x64)
 disassemble.maxlen = 15
 
 
-def PC():
-    return rip
+def PC(state=None):
+    return rip if state is None else state(ptr(rip,seg=cs))
 
 
 def get_data_endian():

@@ -14,7 +14,8 @@ the :mod:`amoco.system` package.
 
 """
 
-from amoco.arch.core import Bits
+from amoco.arch.core import Bits,DecodeError,InstructionError
+from amoco.system.memory import MemoryMapError
 from amoco.ui.views import execView, dataView
 from amoco.logger import Log
 
@@ -89,7 +90,7 @@ class CoreExec(object):
         cpu.instruction instance or cpu.ext in case an external expression
         is found at vaddr or vaddr is an external symbol.
 
-        Raises MemoryError in case vaddr is not mapped,
+        Raises DecodeError in case vaddr is not mapped,
         and returns None if disassembler fails to decode bytes at vaddr.
 
         Note:
@@ -102,7 +103,7 @@ class CoreExec(object):
             logger.error("no cpu imported")
             raise ValueError
         if "mmap" in kargs:
-            mmap = kargs[mmap]
+            mmap = kargs["mmap"]
         else:
             mmap = self.state.mmap
         maxlen = self.cpu.disassemble.maxlen
@@ -115,13 +116,13 @@ class CoreExec(object):
             addr = vaddr
         try:
             istr = mmap.read(vaddr, maxlen)
-        except MemoryError as e:
+        except MemoryMapError as e:
             logger.verbose("vaddr %s is not mapped" % addr)
-            raise MemoryError(e)
+            raise DecodeError(e)
         else:
             if len(istr) <= 0:
                 logger.verbose("failed to read instruction at %s" % addr)
-                raise MemoryError(addr)
+                raise DecodeError(addr)
             elif not isinstance(istr[0], bytes):
                 if istr[0]._is_ext:
                     istr[0].address = addr
@@ -134,7 +135,7 @@ class CoreExec(object):
             return None
         else:
             if i.address is None:
-                i.address = addr
+                i.address = kargs.get("label",addr)
             return i
 
     def symbol_for(self,address):
@@ -198,7 +199,7 @@ class CoreExec(object):
         elif isinstance(loc, int):
             endian = self.cpu.get_data_endian()
             psz = self.cpu.PC().size
-            x = self.cpu.mem(self.cpu.cst(addr, psz), size, endian=endian)
+            x = self.cpu.mem(self.cpu.cst(loc, psz), size, endian=endian)
         else:
             x = loc
             size = x.size
@@ -615,41 +616,49 @@ def load_program(f, cpu=None, loader=None):
     logger.verbose("--- detect binary format ---")
 
     p = read_program(f)
-
+    x = None
     logger.verbose("--- create task ---")
 
     Loaders = DefineLoader.LOADERS
-    if loader is not None and (loader in Loaders):
-        x = Loaders[loader](p)
-    if p.is_ELF:
+    if loader is not None:
         try:
-            x = Loaders["elf"][p.Ehdr.e_machine](p)
+            x = Loaders[loader](p)
         except KeyError:
-            logger.error("ELF machine type not supported")
-            x = None
+            logger.error("loader '%s' not found"%loader)
+            return None
         except Exception:
-            logger.error("ELF loader error")
-            x = None
-    elif p.is_PE:
-        try:
-            x = Loaders["pe"][p.NT.Machine](p)
-        except KeyError:
-            logger.error("PE machine type not supported")
-            x = None
-        except Exception:
-            logger.error("PE loader error")
-            x = None
-    elif p.is_MachO:
-        try:
-            x = Loaders["macho"][p.header.cputype](p)
-        except Exception:
-            logger.error("Mach-O machine type not supported")
-            x = None
-        except Exception:
-            logger.error("Mach-O loader error")
-            x = None
-    else:
-        x = Loaders["raw"](p, cpu)
+            logger.error("error in loader '%s', fallback to autodetect"%loader)
+    if x is None:
+        if p.is_ELF:
+            try:
+                x = Loaders["elf"][p.Ehdr.e_machine](p)
+            except KeyError:
+                logger.error("ELF machine type not supported")
+            except Exception:
+                logger.error("ELF loader error")
+        elif p.is_PE:
+            try:
+                x = Loaders["pe"][p.NT.Machine](p)
+            except KeyError:
+                logger.error("PE machine type not supported")
+            except Exception:
+                logger.error("PE loader error")
+        elif p.is_MachO:
+            try:
+                x = Loaders["macho"][p.header.cputype](p)
+            except KeyError:
+                logger.error("Mach-O machine type not supported")
+            except Exception:
+                logger.error("Mach-O loader error")
+        elif p.is_COFF:
+            try:
+                x = Loaders["coff"][p.Fhdr.f_magic](p)
+            except KeyError:
+                logger.error("COFF magic not supported")
+            except Exception:
+                logger.error("COFF loader error")
+        else:
+            x = Loaders["raw"](p, cpu)
 
     if x is not None:
         logger.info("a new task is loaded %s"%str(x.view))
@@ -660,10 +669,8 @@ def load_program(f, cpu=None, loader=None):
                 x = Loaders["elf-baremetal"][p.Ehdr.e_machine](p)
             except KeyError:
                 logger.error("No baremetal for this ELF machine type")
-                x = None
             except Exception:
                 logger.error("elf-baremetal loader error")
-                x = None
             else:
                 logger.info("a new baremetal is loaded")
         else:

@@ -412,6 +412,7 @@ class tokenrow(object):
     def __init__(self, toks=None):
         if toks is None:
             toks = []
+        self.label = None
         self.maxwidth = float("inf")
         self.align = "<"
         self.fill = " "
@@ -503,6 +504,9 @@ class tokenrow(object):
             if tt == Token.Column and sep:
                 r.append(sep)
         r.append(tail)
+        if self.label:
+            label = highlight([self.label],formatter,outfile)
+            r.insert(0,"%s:\n"%label)
         return "".join(r)
 
 class Icons:
@@ -539,6 +543,7 @@ class Icons:
 
 icons = Icons()
 # define operator unicode symbols:
+icons.mop["S"]   = "\u2211"       # Sigma
 icons.mop["-"]   = "\u2212"
 icons.mop["**"]  = "\u2217"
 icons.mop["&"]   = "\u2227"

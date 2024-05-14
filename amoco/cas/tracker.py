@@ -18,6 +18,14 @@ class generation(dict):
     def __getitem__(self, k):
         return self.get(k, None)
 
+    def cleanup(self):
+        K = []
+        for k in self:
+            if not k._is_reg:
+                K.append(k)
+        for k in K:
+            del self[k]
+
 
 class nextgeneration(object):
     def __init__(self, *args, **kargs):

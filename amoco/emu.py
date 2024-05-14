@@ -17,6 +17,7 @@ from collections import deque
 
 from amoco.config import conf
 from amoco.arch.core import DecodeError
+from amoco.system.memory import MemoryMapError
 from amoco.sa import lsweep
 from amoco.ui.views import emulView
 from amoco.logger import Log
@@ -32,11 +33,14 @@ class emul(object):
     def __init__(self, task):
         self.task = task
         self.cpu = task.cpu
+        # get reference to pc register & size:
         self.pc = task.cpu.PC()
         self.psz = self.pc.size
+        # storage for breakpoints/watchpoints/...
         self.hooks = []
         self.watch = {}
         self.handlers = {}
+        # future OS abi support (wip)
         if task.OS is not None:
             self.abi = task.OS.abi
         else:
@@ -46,28 +50,52 @@ class emul(object):
         self.view = emulView(self)
         self.handlers[EmulError] = self.stop
         self.handlers[DecodeError] = self.stop
+        self.handlers[MemoryMapError] = self.stop
 
     def stepi(self,trace=False):
-        addr = self.task.state(self.pc)
-        if addr._is_top:
-            logger.warning("%s has reached top value")
-            raise EmulError()
-        i = self.task.read_instruction(addr)
+        # get PC value in state:
+        vaddr = self.task.state(self.pc)
+        # It's much better to use the cpu.PC(state) function for this
+        # since the actual target address can be any expression obtained
+        # from the current PC register value (including bit masking or
+        # fetching data from a code segment (aka x86 cs), etc.
+        raddr = self.task.cpu.PC(self.task.state)
+        if raddr._is_top:
+            logger.warning("%s has reached top value"%self.pc)
+            return None
+        if raddr._is_vec:
+            logger.warning("%s has too many values, choose one manually"%self.pc)
+            return None
+        if raddr._is_ext:
+            raddr.stub(self.task.state)
+            vaddr = self.task.state(self.pc)
+            raddr = self.task.cpu.PC(self.task.state)
+        # get instruction @ PC raddr (labeled with vaddr):
+        try:
+            i = self.task.read_instruction(raddr,label=vaddr)
+        except DecodeError as e:
+            logger.warning("decode error at address %s"%vaddr)
+            i = None
         if i is not None:
             if trace:
                 ops_v = [(self.task.state(o),o) for o in i.operands]
                 i.misc['trace'] = ops_v
-            self.task.state.safe_update(i)
+            if conf.Emu.safe:
+                self.task.state.safe_update(i)
+            else:
+                self.task.state.update(i)
             self.hist.append(i)
             if i.misc.get('delayed',False):
-                islot = self.task.read_instruction(addr+i.length)
+                vaddr += i.length
+                islot = self.task.read_instruction(raddr+i.length, label=vaddr)
                 if trace:
                     ops_v = [(self.task.state(o),o) for o in islot.operands]
                     islot.misc['trace'] = ops_v
-                self.task.state.safe_update(islot)
+                if conf.Emu.safe:
+                    self.task.state.safe_update(islot)
+                else:
+                    self.task.state.update(islot)
                 self.hist.append(islot)
-        else:
-            raise DecodeError(addr)
         return i
 
     def iterate(self,trace=False):
@@ -78,11 +106,15 @@ class emul(object):
                 logger.info("stop iteration due to %s"%reason.__doc__)
                 break
             try:
-                addr = self.task.state(self.pc)
-                if addr._is_top:
+                vaddr = self.task.state(self.pc)
+                raddr = self.task.cpu.PC(self.task.state)
+                if raddr._is_top:
+                    print("can't continue: pc=%s"%(vaddr))
                     raise EmulError()
-                print("%s: %s"%(type(addr),addr))
-                lasti = i = self.task.read_instruction(addr)
+                if raddr._is_vec:
+                    print("too many branches: %s"%(vaddr))
+                    raise EmulError()
+                lasti = i = self.task.read_instruction(raddr,label=vaddr)
                 if trace:
                     ops_v = [(self.task.state(o),o) for o in i.operands]
                     i.misc['trace'] = ops_v
@@ -97,6 +129,8 @@ class emul(object):
                 # we break only if the handler returns False:
                 if not self.exception_handler(e):
                     break
+            except KeyboardInterrupt as e:
+                break
 
     def exception_handler(self, e):
         te = type(e)
@@ -119,7 +153,7 @@ class emul(object):
                     break
         return res,who
 
-    def breakpoint(self,x=''):
+    def breakpoint(self,x=None):
         """add breakpoint hook associated with the provided expression.
 
            Argument:
@@ -131,7 +165,8 @@ class emul(object):
                  excludes expressions related to instruction bytes,
                  mnemonic or operands. See ibreakpoint method.
         """
-        if x == '':
+        if x is None:
+            x = ''
             for index,f in enumerate(self.hooks):
                 if f.__doc__.startswith('break'):
                     x += "[% 2d] %s\n"%(index,f.__doc__)
@@ -175,7 +210,7 @@ class emul(object):
            operand or any source operand.
 
            Arguments:
-           mnemonic (str): breaks after next instruction matching mnemonic.
+           mnemonic (str): breaks *after* next instruction matching mnemonic.
            dst (int/cst/exp): break on matching destination operand.
            src (int/cst/exp): break on matching any source operand.
 
@@ -198,6 +233,8 @@ class emul(object):
                 cond = (prev.mnemonic.lower()==mnemo)
                 if not cond:
                     return False
+            else:
+                cond = False
             if xdest is not None or xsrc is not None:
                 m = e.task.state.__class__()
                 m = prev(m)
@@ -209,13 +246,67 @@ class emul(object):
                     cond = any((bool(e.task.state(x==xsrc)) for _,x in m))
                     if not cond:
                         return False
-            return False
+            return cond
         doc = 'breakpoint: '
         if mnemonic: doc += "%s "%mnemonic
         if dst: doc += "dst: %s "%str(dst)
         if src: doc += "src: %s"%str(dst)
         check.__doc__ = doc
         self.hooks.append(check)
+        return doc
+
+    def tracepoint(self,x='',act=None,file=None):
+        """add tracepoint hook associated with provided expression.
+
+           Argument:
+           x (int/cst/exp): If x is an int or cst, the provided action
+               is triggered when bool(state(pc==x)) is True (ie the value
+               is assumed to represent an instruction's address.
+               Otherwise, action is triggered simply when bool(state(x))
+               is True.
+           act (list[(expr,expr)]): The action consist in a list of
+              (lx,rx) directives to print/modify locations of the
+              current state (print if rx is None). Directives are applied
+              in given order. If rx is not None, the action is
+              state[lx] = state(rx).
+              If act is None, a copy of the state is printed to file. 
+           file: The file in which to append printed directives.
+              If act is None, and no file is provided, it is created with
+              tempfile.mkstemp(prefix='amoco-trace-%s'%x,suffix='.dump')
+        """
+        if x == '':
+            for index,f in enumerate(self.hooks):
+                if f.__doc__.startswith('trace'):
+                    x += "[% 2d] %s\n"%(index,f.__doc__)
+            return x
+        if isinstance(x,int):
+            x = self.task.cpu.cst(x,self.pc.size)
+        if x._is_cst:
+            x = self.pc==x
+        if act is None and (not filename):
+            import tempfile
+            file = tempfile.mkstemp(prefix='amoco-trace-%s.dump'%x,
+                                    suffix='.dump')
+        def tp(e,prev,expr=x,act=act,f=file):
+            "tracepoint: "
+            if bool(e.task.state(expr)):
+                if act is None:
+                    print(e.task.state,file=f)
+                else:
+                    for lx,rx in act:
+                        if rx is None:
+                            print("%s: %s"%(lx, e.task.state(lx)),file=f)
+                        else:
+                            try:
+                                e.task.setx(lx,rx)
+                                msg = 'tracepoint: %s'%expr
+                                logger.verbose("%s: %s <- %s" % (msg,lx,rx))
+                            except:
+                                pass
+            return False
+        tp.__doc__ = 'tracepoint: %s'%x
+        self.hooks.append(tp)
+        return x
 
     def stop(self,*args,**kargs):
         return False

@@ -21,7 +21,7 @@ from amoco.arch.avr import spec
 disassemble = disassembler([spec], iclass=instruction_avr)
 
 
-def PC():
+def PC(state=None):
     return pc
 
 

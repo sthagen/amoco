@@ -1,5 +1,3 @@
-import pytest
-
 import amoco.cas.expressions
 from amoco import sa
 

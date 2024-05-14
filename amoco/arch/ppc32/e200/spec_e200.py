@@ -8,5 +8,5 @@ from . import env
 
 # import generic PowerPC ISA (book E):
 
-from amoco.arch.ppc32.spec import *
+from amoco.arch.ppc32.spec_booke import *
 

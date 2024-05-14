@@ -153,7 +153,8 @@ def token_name_fmt(k, x, cls=None, fmt=None):
         k = pfx + k
     ks = k
     try:
-        return highlight([(Token.Name, Consts.All[ks][x])],fmt)
+        return highlight([(Token.Name, Consts.All[ks][x]),
+                          (Token.Literal, " (%s)"%x)],fmt)
     except KeyError:
         return token_constant_fmt(k, x, cls, fmt)
 
