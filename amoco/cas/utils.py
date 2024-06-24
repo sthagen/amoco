@@ -17,7 +17,7 @@ from .expressions import oper, composer, bit0
 
 
 def Abs(x):
-    if x.sf == False:
+    if not x.sf:
         return x
     y = x // (x.size - 1)
     return (x + y) ^ y

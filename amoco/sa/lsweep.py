@@ -21,7 +21,6 @@ Still, it provides - at almost no cost - an overapproximation of the set of all
 # Copyright (C) 2006-2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.config import conf
 from amoco.logger import Log
 
 logger = Log(__name__)
@@ -29,19 +28,9 @@ logger.debug("loading module")
 
 from amoco import cfg
 from amoco import code
-from amoco.signals import SIG_TRGT, SIG_NODE, SIG_EDGE, SIG_BLCK, SIG_FUNC
+from amoco.signals import SIG_NODE, SIG_EDGE, SIG_BLCK
 from amoco.arch.core import type_control_flow
 
-__all__ = [
-    "cfg",
-    "code",
-    "SIG_TRGT",
-    "SIG_NODE",
-    "SIG_EDGE",
-    "SIG_BLCK",
-    "SIG_FUNC",
-    "lsweep",
-]
 
 # -----------------------------------------------------------------------------
 class lsweep(object):
@@ -84,14 +73,19 @@ class lsweep(object):
         if loc is None:
             try:
                 m = p.state
-                loc = p.cpu.PC(m)
-                vaddr = m(p.cpu.PC())
+                loc = p.cpu.getPC(m)
+                vaddr = m(p.cpu.getPC())
             except (TypeError, ValueError):
                 loc = 0
+                vaddr = 0
         else:
-            vaddr = loc
+            if p.state(p.cpu.PG) == 1:
+                vaddr = loc
+                loc = p.cpu.mmu_get_paddr(p.state, loc)
+            else:
+                vaddr = loc
         while True:
-            i = p.read_instruction(loc,label=vaddr)
+            i = p.read_instruction(loc, label=vaddr)
             if i is None:
                 break
             loc += i.length
@@ -116,14 +110,14 @@ class lsweep(object):
         if not self.prog.cpu:
             logger.error("no cpu has been assigned to prog.")
             return
-        if isinstance(loc,int):
-            loc = self.prog.cpu.cst(loc,self.prog.cpu.PC().size)
+        if isinstance(loc, int):
+            loc = self.prog.cpu.cst(loc, self.prog.cpu.getPC().size)
         seq = self.sequence(loc)
         is_delay_slot = False
         for i in seq:
             # add branching instruction inside block:
             l.append(i)
-            if i.misc.get("delayed",False):
+            if i.misc.get("delayed", False):
                 is_delay_slot = True
             elif i.type == type_control_flow or is_delay_slot:
                 # check if branch is delayed (e.g. sparc)
@@ -155,8 +149,7 @@ class lsweep(object):
 
     @property
     def functions(self):
-        """provides the list of functions recovered so far.
-        """
+        """provides the list of functions recovered so far."""
         F = []
         for c in self.G.C:
             f = c.sV[0]

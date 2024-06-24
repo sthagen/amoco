@@ -6,7 +6,25 @@
 
 # spec_xxx files are providers for instruction objects.
 
-from .utils import *
+from . import env
+from amoco.logger import Log
+
+logger = Log(__name__)
+
+from amoco.arch.core import pack
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_system,
+    type_cpu_state,
+    type_undefined,
+    type_other,
+)
+
+# ruff: noqa: F405
+# ruff: noqa: F811
+
+from .utils import *  # noqa: F403
 
 # ------------------------------------------------------
 # amoco IA32e instruction specs:
@@ -24,7 +42,7 @@ def setpfx(obj, pfx, n):
     obj.misc.update((pfx,))
     if obj.misc["pfx"] is None:
         obj.misc["pfx"] = [None] * 4
-    if obj.misc["pfx"][n] != None:
+    if obj.misc["pfx"][n] is not None:
         logger.verbose("pfx %s grp %s redefined" % (pfx[0], n))
     obj.misc["pfx"][n] = pfx[0]
 
@@ -68,31 +86,51 @@ def prefix_REX(obj, B, X, R, W, _pfx):
         raise InstructionError(obj)
     obj.misc["REX"] = (W, R, X, B)
 
+
 def precond_rep(obj):
     return obj.misc["rep"]
+
+
 def precond_norep(obj):
     return not obj.misc["rep"]
+
+
 def precond_opdsz(obj):
     return obj.misc["opdsz"]
+
+
 def precond_noopdsz(obj):
     return not obj.misc["opdsz"]
+
+
 def precond_opdsz_16(obj):
     size = obj.misc["opdsz"]
-    return size==16
+    return size == 16
+
+
 def precond_repne(obj):
-    return (obj.misc["repne"] and obj.misc["pfx"][0] == "repne")
+    return obj.misc["repne"] and obj.misc["pfx"][0] == "repne"
+
+
 def precond_norepne(obj):
     return not (obj.misc["repne"] and obj.misc["pfx"][0] == "repne")
+
+
 def precond_REX(obj):
     return obj.misc["REX"]
+
+
 def precond_W1(obj):
-    W=0
+    W = 0
     if obj.misc["REX"]:
         W, R, X, B = obj.misc["REX"]
-    return W==1
+    return W == 1
+
+
 def precond_32bits(obj):
     size = obj.misc["adrsz"] or 64
-    return size==32
+    return size == 32
+
 
 # IA32e opcodes:
 # ------------------------------------------------------
@@ -101,10 +139,13 @@ def precond_32bits(obj):
 # -------------
 
 
-@ispec_ia32(" 8>[ {90} ]", mnemonic="NOP", type=type_data_processing,__obj=precond_norep)
-@ispec_ia32(" 8>[ {90} ]", mnemonic="PAUSE", type=type_cpu_state,__obj=precond_rep)
+@ispec_ia32(
+    " 8>[ {90} ]", mnemonic="NOP", type=type_data_processing, __obj=precond_norep
+)
+@ispec_ia32(" 8>[ {90} ]", mnemonic="PAUSE", type=type_cpu_state, __obj=precond_rep)
 def ia32_nop(obj):
     pass
+
 
 @ispec_ia32(" 8>[ {9b}         ]", mnemonic="WAIT", type=type_other)
 @ispec_ia32(" 8>[ {c9}         ]", mnemonic="LEAVE", type=type_data_processing)
@@ -148,12 +189,28 @@ def ia32_nooperand(obj):
 @ispec_ia32(" 8>[ {cf}         ]", mnemonic="IRETD", type=type_other)
 @ispec_ia32(" 8>[ {98}         ]", mnemonic="CWDE", type=type_data_processing)
 @ispec_ia32(" 8>[ {99}         ]", mnemonic="CDQ", type=type_data_processing)
-@ispec_ia32(" 8>[ {cf}         ]", mnemonic="IRET", type=type_other,__obj=precond_opdsz)
-@ispec_ia32(" 8>[ {98}         ]", mnemonic="CBW", type=type_data_processing,__obj=precond_opdsz)
-@ispec_ia32(" 8>[ {99}         ]", mnemonic="CWD", type=type_data_processing,__obj=precond_opdsz)
-@ispec_ia32(" 8>[ {cf}         ]", mnemonic="IRETQ", type=type_other,__obj=precond_W1)
-@ispec_ia32(" 8>[ {98}         ]", mnemonic="CDQE", type=type_data_processing,__obj=precond_REX)
-@ispec_ia32(" 8>[ {99}         ]", mnemonic="CQO", type=type_data_processing,__obj=precond_REX)
+@ispec_ia32(
+    " 8>[ {cf}         ]", mnemonic="IRET", type=type_other, __obj=precond_opdsz
+)
+@ispec_ia32(
+    " 8>[ {98}         ]",
+    mnemonic="CBW",
+    type=type_data_processing,
+    __obj=precond_opdsz,
+)
+@ispec_ia32(
+    " 8>[ {99}         ]",
+    mnemonic="CWD",
+    type=type_data_processing,
+    __obj=precond_opdsz,
+)
+@ispec_ia32(" 8>[ {cf}         ]", mnemonic="IRETQ", type=type_other, __obj=precond_W1)
+@ispec_ia32(
+    " 8>[ {98}         ]", mnemonic="CDQE", type=type_data_processing, __obj=precond_REX
+)
+@ispec_ia32(
+    " 8>[ {99}         ]", mnemonic="CQO", type=type_data_processing, __obj=precond_REX
+)
 def ia32_nooperand(obj):
     if obj.misc["opdsz"]:
         if obj.mnemonic == "CWDE":
@@ -178,28 +235,44 @@ def ia32_nooperand(obj):
 @ispec_ia32(" 8>[ {6d} ]", mnemonic="INSD", type=type_system)
 @ispec_ia32(" 8>[ {a4} ]", mnemonic="MOVSB", type=type_data_processing)
 @ispec_ia32(" 8>[ {a5} ]", mnemonic="MOVSD", type=type_data_processing)
-@ispec_ia32(" 8>[ {a5} ]", mnemonic="MOVSQ", type=type_data_processing,__obj=precond_W1)
-@ispec_ia32(" 8>[ {a5} ]", mnemonic="MOVSW", type=type_data_processing,__obj=precond_opdsz_16)
+@ispec_ia32(
+    " 8>[ {a5} ]", mnemonic="MOVSQ", type=type_data_processing, __obj=precond_W1
+)
+@ispec_ia32(
+    " 8>[ {a5} ]", mnemonic="MOVSW", type=type_data_processing, __obj=precond_opdsz_16
+)
 @ispec_ia32(" 8>[ {6e} ]", mnemonic="OUTSB", type=type_other)
 @ispec_ia32(" 8>[ {6f} ]", mnemonic="OUTSD", type=type_other)
-@ispec_ia32(" 8>[ {6f} ]", mnemonic="OUTSQ", type=type_other,__obj=precond_W1)
-@ispec_ia32(" 8>[ {6f} ]", mnemonic="OUTSW", type=type_other,__obj=precond_opdsz_16)
+@ispec_ia32(" 8>[ {6f} ]", mnemonic="OUTSQ", type=type_other, __obj=precond_W1)
+@ispec_ia32(" 8>[ {6f} ]", mnemonic="OUTSW", type=type_other, __obj=precond_opdsz_16)
 @ispec_ia32(" 8>[ {ac} ]", mnemonic="LODSB", type=type_other)
 @ispec_ia32(" 8>[ {ad} ]", mnemonic="LODSD", type=type_other)
-@ispec_ia32(" 8>[ {ad} ]", mnemonic="LODSQ", type=type_other,__obj=precond_W1)
-@ispec_ia32(" 8>[ {ad} ]", mnemonic="LODSW", type=type_other,__obj=precond_opdsz_16)
+@ispec_ia32(" 8>[ {ad} ]", mnemonic="LODSQ", type=type_other, __obj=precond_W1)
+@ispec_ia32(" 8>[ {ad} ]", mnemonic="LODSW", type=type_other, __obj=precond_opdsz_16)
 @ispec_ia32(" 8>[ {aa} ]", mnemonic="STOSB", type=type_data_processing)
 @ispec_ia32(" 8>[ {ab} ]", mnemonic="STOSD", type=type_data_processing)
-@ispec_ia32(" 8>[ {ab} ]", mnemonic="STOSQ", type=type_data_processing,__obj=precond_W1)
-@ispec_ia32(" 8>[ {ab} ]", mnemonic="STOSW", type=type_data_processing,__obj=precond_opdsz_16)
+@ispec_ia32(
+    " 8>[ {ab} ]", mnemonic="STOSQ", type=type_data_processing, __obj=precond_W1
+)
+@ispec_ia32(
+    " 8>[ {ab} ]", mnemonic="STOSW", type=type_data_processing, __obj=precond_opdsz_16
+)
 @ispec_ia32(" 8>[ {a6} ]", mnemonic="CMPSB", type=type_data_processing)
 @ispec_ia32(" 8>[ {a7} ]", mnemonic="CMPSD", type=type_data_processing)
-@ispec_ia32(" 8>[ {a7} ]", mnemonic="CMPSQ", type=type_data_processing,__obj=precond_W1)
-@ispec_ia32(" 8>[ {a7} ]", mnemonic="CMPSW", type=type_data_processing,__obj=precond_opdsz_16)
+@ispec_ia32(
+    " 8>[ {a7} ]", mnemonic="CMPSQ", type=type_data_processing, __obj=precond_W1
+)
+@ispec_ia32(
+    " 8>[ {a7} ]", mnemonic="CMPSW", type=type_data_processing, __obj=precond_opdsz_16
+)
 @ispec_ia32(" 8>[ {ae} ]", mnemonic="SCASB", type=type_data_processing)
 @ispec_ia32(" 8>[ {af} ]", mnemonic="SCASD", type=type_data_processing)
-@ispec_ia32(" 8>[ {af} ]", mnemonic="SCASQ", type=type_data_processing,__obj=precond_W1)
-@ispec_ia32(" 8>[ {af} ]", mnemonic="SCASW", type=type_data_processing,__obj=precond_opdsz_16)
+@ispec_ia32(
+    " 8>[ {af} ]", mnemonic="SCASQ", type=type_data_processing, __obj=precond_W1
+)
+@ispec_ia32(
+    " 8>[ {af} ]", mnemonic="SCASW", type=type_data_processing, __obj=precond_opdsz_16
+)
 def ia32_strings(obj):
     if obj.misc["rep"]:
         obj.type = type_control_flow
@@ -213,6 +286,7 @@ def ia32_strings(obj):
 
 # 1 operand
 # ----------
+
 
 # imm8:
 @ispec_ia32("16>[ {cd} ib(8) ]", mnemonic="INT", type=type_control_flow)
@@ -236,7 +310,9 @@ def ia32_imm_rel(obj, ib):
 
 
 @ispec_ia32("16>[ {e3} cb(8) ]", mnemonic="JRCXZ", type=type_control_flow)
-@ispec_ia32("16>[ {e3} cb(8) ]", mnemonic="JECXZ", type=type_control_flow, __obj=precond_32bits)
+@ispec_ia32(
+    "16>[ {e3} cb(8) ]", mnemonic="JECXZ", type=type_control_flow, __obj=precond_32bits
+)
 def ia32_cb8(obj, cb):
     size = obj.misc["adrsz"] or 64
     if size == 32:
@@ -280,6 +356,7 @@ def ia32_imm_rel(obj, data):
 
 # explicit register:
 
+
 # r16/32
 @ispec_ia32("*>[ reg(3) 0 1010 ]", mnemonic="PUSH")  # 50 +rd
 @ispec_ia32("*>[ reg(3) 1 1010 ]", mnemonic="POP")  # 58 +rd
@@ -316,6 +393,7 @@ def ia32_push_pop(obj, _seg):
 
 
 # r/m operand:
+
 
 # r/m8
 @ispec_ia32("*>[ {fe} /0     ]", mnemonic="INC", type=type_data_processing)
@@ -370,8 +448,8 @@ def ia32_rm64(obj, Mod, RM, data):
     op1, data = getModRM(obj, Mod, RM, data, REX)
     obj.operands = [op1]
     obj.misc["absolute"] = True
-    if obj.misc['segreg'] is env.ds:
-        setpfx(obj, ('notrack',True), 0)
+    if obj.misc["segreg"] is env.ds:
+        setpfx(obj, ("notrack", True), 0)
     obj.type = type_control_flow
 
 
@@ -429,6 +507,7 @@ def ia32_imm_rel(obj, cc, data):
 
 # 2 operands
 # ----------
+
 
 # implicit ax/eax, r16/32
 @ispec_ia32("8>[ rd(3) 0 1001 ]", mnemonic="XCHG")  # 9x
@@ -818,11 +897,11 @@ def ia32_reg_32(obj, Mod, RM, REG, data):
 @ispec_ia32("*>[ {8b} /r     ]", mnemonic="MOV")
 @ispec_ia32("*>[ {8d} /r     ]", mnemonic="LEA")
 @ispec_ia32("*>[ {0f}{bc} /r ]", mnemonic="BSF")
-@ispec_ia32("*>[ {0f}{bd} /r ]", mnemonic="BSR",__obj=precond_norep)
-@ispec_ia32("*>[ {0f}{bd} /r ]", mnemonic="LZCNT",__obj=precond_rep)
+@ispec_ia32("*>[ {0f}{bd} /r ]", mnemonic="BSR", __obj=precond_norep)
+@ispec_ia32("*>[ {0f}{bd} /r ]", mnemonic="LZCNT", __obj=precond_rep)
 @ispec_ia32("*>[ {0f}{af} /r ]", mnemonic="IMUL")
 @ispec_ia32("*>[ {0f}{03} /r ]", mnemonic="LSL")
-@ispec_ia32("*>[ {0f}{b8} /r ]", mnemonic="POPCNT",__obj=precond_norep)
+@ispec_ia32("*>[ {0f}{b8} /r ]", mnemonic="POPCNT", __obj=precond_norep)
 def ia32_reg_32_inv(obj, Mod, RM, REG, data):
     op2, data = getModRM(obj, Mod, RM, data)
     op1 = getregR(obj, REG, op2.size)
@@ -889,6 +968,7 @@ def ia32_SETcc(obj, cc, Mod, RM, REG, data):
 # 3 operands:
 # -----------
 
+
 # r16/32, r/m16/32, sign extended imm8
 @ispec_ia32("*>[ {6b} /r ]", mnemonic="IMUL")
 def ia32_reg_rm_8(obj, Mod, RM, REG, data):
@@ -947,7 +1027,7 @@ def ia32_movnti(obj, Mod, RM, REG, data):
 
 
 @ispec_ia32("*>[ {0f}{c7} /1 ]", mnemonic="CMPXCHG8B")
-@ispec_ia32("*>[ {0f}{c7} /1 ]", mnemonic="CMPXCHG16B",__obj=precond_W1)
+@ispec_ia32("*>[ {0f}{c7} /1 ]", mnemonic="CMPXCHG16B", __obj=precond_W1)
 def ia32_cmpxchg(obj, Mod, RM, data):
     op2, data = getModRM(obj, Mod, RM, data)
     if not op2._is_mem:
@@ -971,9 +1051,15 @@ def ia32_longnop(obj, Mod, RM, data):
 @ispec_ia32("*>[ {0f}{ae} /2  ]", mnemonic="LDMXCSR", type=type_cpu_state)
 @ispec_ia32("*>[ {0f}{ae} /3  ]", mnemonic="STMXCSR", type=type_cpu_state)
 @ispec_ia32("*>[ {0f}{ae} /4  ]", mnemonic="XSAVE", type=type_cpu_state)
-@ispec("*>[ {0f}{ae} RM(3) 101 Mod(2) ~data(*) ]", mnemonic="XRSTOR", type=type_cpu_state)
-@ispec("*>[ {0f}{ae} RM(3) 011 Mod(2) ~data(*) ]", mnemonic="XSAVEOPT", type=type_cpu_state)
-@ispec("*>[ {0f}{ae} RM(3) 111 Mod(2) ~data(*) ]", mnemonic="CLFLUSH", type=type_cpu_state)
+@ispec(
+    "*>[ {0f}{ae} RM(3) 101 Mod(2) ~data(*) ]", mnemonic="XRSTOR", type=type_cpu_state
+)
+@ispec(
+    "*>[ {0f}{ae} RM(3) 011 Mod(2) ~data(*) ]", mnemonic="XSAVEOPT", type=type_cpu_state
+)
+@ispec(
+    "*>[ {0f}{ae} RM(3) 111 Mod(2) ~data(*) ]", mnemonic="CLFLUSH", type=type_cpu_state
+)
 def ia32_xxx(obj, Mod, RM, data):
     op1, data = getModRM(obj, Mod, RM, data)
     if Mod == 0b11 and obj.mnemonic in ("XRSTOR", "XSAVEOPT", "CLFLUSH"):
@@ -983,9 +1069,22 @@ def ia32_xxx(obj, Mod, RM, data):
         if obj.mnemonic == "CLFLUSH":
             obj.misc["opdsz"] = 8
 
-@ispec("*>[ {0f}{ae} RM(3) 101 11=Mod(2) ~data(*) ]", mnemonic="LFENCE", type=type_cpu_state)
-@ispec("*>[ {0f}{ae} RM(3) 011 11=Mod(2) ~data(*) ]", mnemonic="MFENCE", type=type_cpu_state)
-@ispec("*>[ {0f}{ae} RM(3) 111 11=Mod(2) ~data(*) ]", mnemonic="SFENCE", type=type_cpu_state)
+
+@ispec(
+    "*>[ {0f}{ae} RM(3) 101 11=Mod(2) ~data(*) ]",
+    mnemonic="LFENCE",
+    type=type_cpu_state,
+)
+@ispec(
+    "*>[ {0f}{ae} RM(3) 011 11=Mod(2) ~data(*) ]",
+    mnemonic="MFENCE",
+    type=type_cpu_state,
+)
+@ispec(
+    "*>[ {0f}{ae} RM(3) 111 11=Mod(2) ~data(*) ]",
+    mnemonic="SFENCE",
+    type=type_cpu_state,
+)
 def ia32_xfence(obj, Mod, RM, data):
     obj.operands = []
 
@@ -1021,6 +1120,7 @@ def ia32_mov_dr(obj, Mod, REG, RM, data):
 
 
 # IN/OUT:
+
 
 # implicit al/ax/eax register:
 @ispec_ia32("8>[ {ec} ]", mnemonic="IN")
@@ -1075,7 +1175,7 @@ def ia32_movx(obj, Mod, RM, REG, data, _flg8):
 
 
 # MOVBE & CRC32:
-@ispec_ia32("*>[ {0f}{38} s 000 1111 /r ]", mnemonic="MOVBE",__obj=precond_norepne)
+@ispec_ia32("*>[ {0f}{38} s 000 1111 /r ]", mnemonic="MOVBE", __obj=precond_norepne)
 def ia32_movbe_crc32(obj, s, Mod, RM, REG, data):
     op1, data = getModRM(obj, Mod, RM, data)
     if not op1._is_mem:
@@ -1084,7 +1184,10 @@ def ia32_movbe_crc32(obj, s, Mod, RM, REG, data):
     obj.operands = [op1, op2] if s else [op2, op1]
     obj.type = type_data_processing
 
-@ispec_ia32("*>[ {0f}{38} s 000 1111 /r ]", mnemonic="CRC32", __obj=precond_repne)  # (f2) 0f 38 f0/f1
+
+@ispec_ia32(
+    "*>[ {0f}{38} s 000 1111 /r ]", mnemonic="CRC32", __obj=precond_repne
+)  # (f2) 0f 38 f0/f1
 def ia32_movbe_crc32(obj, s, Mod, RM, REG, data):
     op1 = env.getreg(REG, 32)
     if s == 0:
@@ -1092,6 +1195,7 @@ def ia32_movbe_crc32(obj, s, Mod, RM, REG, data):
     op2, data = getModRM(obj, Mod, RM, data)
     obj.operands = [op1, op2]
     obj.type = type_data_processing
+
 
 # ENDBR (added by Intel in 2017 to protect against ROP)
 @ispec_ia32("32>[ {f3}{0f}{1e}{fb} ]", mnemonic="ENDBR32")

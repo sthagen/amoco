@@ -9,7 +9,14 @@
 
 from amoco.arch.eBPF import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_other,
+)
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # instruction eBPF decoders
@@ -19,6 +26,7 @@ from amoco.arch.core import *
 # -------------------------------------------------------
 
 ISPECS = []
+
 
 # ALU_32 instructions:
 @ispec("64>[ 001 s 0000 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="add")
@@ -165,14 +173,46 @@ def ebpf_ld64_(obj, dreg, sreg, off, imm, unused, imm2):
 
 
 # ABS/IND LOAD instructions:
-@ispec("64>[ 000 00=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="ldw", _abs=True)
-@ispec("64>[ 000 01=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="ldb", _abs=True)
-@ispec("64>[ 000 10=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="ldh", _abs=True)
-@ispec("64>[ 000 11=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="lddw", _abs=True)
-@ispec("64>[ 000 00=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="ldw", _abs=False)
-@ispec("64>[ 000 01=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="ldb", _abs=False)
-@ispec("64>[ 000 10=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="ldh", _abs=False)
-@ispec("64>[ 000 11=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]", mnemonic="lddw", _abs=False)
+@ispec(
+    "64>[ 000 00=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="ldw",
+    _abs=True,
+)
+@ispec(
+    "64>[ 000 01=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="ldb",
+    _abs=True,
+)
+@ispec(
+    "64>[ 000 10=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="ldh",
+    _abs=True,
+)
+@ispec(
+    "64>[ 000 11=sz(2) 100 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="lddw",
+    _abs=True,
+)
+@ispec(
+    "64>[ 000 00=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="ldw",
+    _abs=False,
+)
+@ispec(
+    "64>[ 000 01=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="ldb",
+    _abs=False,
+)
+@ispec(
+    "64>[ 000 10=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="ldh",
+    _abs=False,
+)
+@ispec(
+    "64>[ 000 11=sz(2) 010 dreg(4) sreg(4) off(16) ~imm(32) ]",
+    mnemonic="lddw",
+    _abs=False,
+)
 def ebpf_ld_(obj, sz, dreg, sreg, off, imm, _abs):
     size = {0: 32, 1: 16, 2: 8, 3: 64}[sz]
     dst = env.R[0]

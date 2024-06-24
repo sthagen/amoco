@@ -9,10 +9,6 @@
 
 # ref: The SH-4 CPU Core Architecture, 12 september 2002.
 
-from amoco.arch.superh.sh4 import env
-
-from amoco.arch.core import *
-
 # -------------------------------------------------------
 # sh-4 decoders
 # -------------------------------------------------------
@@ -22,7 +18,7 @@ ISPECS = []
 # import sh-2 instructions
 # -------------------------
 
-from amoco.arch.superh.sh2.spec_sh2 import *
+from amoco.arch.superh.sh2.spec_sh2 import *  # noqa: F403
 
 # add sh3/sh4 instructions
 # -------------------------

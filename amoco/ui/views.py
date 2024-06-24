@@ -23,7 +23,6 @@ using the pygments package.
 """
 
 import re
-from blessed import Terminal
 
 from amoco.config import conf
 from amoco.logger import Log
@@ -31,7 +30,7 @@ from amoco.logger import Log
 logger = Log(__name__)
 logger.debug("loading module")
 
-from amoco.cas.expressions import regtype,et_vrb
+from amoco.cas.expressions import regtype, et_vrb
 from amoco.ui.graphics import Engine
 from amoco.ui.render import Token, vltable, tokenrow, icons
 
@@ -103,6 +102,52 @@ class View(Engine):
     def __str__(self):
         return self.engine.pp(self)
 
+    def __rich__(self):
+        return self.engine.RichTable(self._vltable())
+
+
+# -------------------------------------------------------------------------------
+
+
+class StructView(View):
+    """
+    This class implements the view for all structures that inherit from
+    :class:`system.structs.StructFormatter` objects.
+
+    A StructView specializes :class:`View` by implementing the _vltable method
+    which allows to pretty print (with engines' pp) each of the structure's field
+    name and value according to special token formatters defined within the
+    StructFormatter class.
+    """
+
+    def _vltable(self, **kargs):
+        t = vltable(**kargs)
+        cname = self.__class__.__name__
+        t.header = "{%s}" % cname
+        for f in self.fields:
+            if f.name and f.name != "_":
+                tv = self.fmtkey(f.name)
+                tv.rows[0].addcolumn(0, [(Token.Literal, f.name)])
+                tv.rows[0].addcolumn(1, [(Token.Literal, ": ")])
+                for r in tv.rows[1:]:
+                    r.addcolumn(0, [(Token.Literal, " ")])
+                    r.addcolumn(1, [(Token.Literal, " ")])
+                t.rows.extend(tv.rows)
+            elif hasattr(f, "subnames"):
+                subn = filter(lambda n: n != "_", f.subnames)
+                for n in subn:
+                    tv = self.fmtkey(n)
+                    tv.rows[0].addcolumn(0, [(Token.Literal, n)])
+                    tv.rows[0].addcolumn(1, [(Token.Literal, ": ")])
+                    for r in tv.rows[1:]:
+                        r.addcolumn(0, [(Token.Literal, " ")])
+                        r.addcolumn(1, [(Token.Literal, " ")])
+                    t.rows.extend(tv.rows)
+            else:
+                continue
+        t.update()
+        return t
+
 
 # -------------------------------------------------------------------------------
 
@@ -112,7 +157,7 @@ class dataView(View):
     This class implements the view for :class:`system.core.DataIO` objects.
 
     A dataView specializes :class:`View` by implementing the _vltable method
-    which allows to pretty print (with pygments' highlight) the hexdump of the
+    which allows to pretty print (with engines' pp) the hexdump of the
     associated DataIO object (ie file/stream bytes.)
 
     Args:
@@ -130,28 +175,48 @@ class dataView(View):
         self.nbb = 16
         self.nbl = 16
 
-    def hexdump(self,cur=None,nbb=None,nbl=None):
+    def hexdump(self, cur=None, nbb=None, nbl=None):
         """
         Output the vltable of the hexdump of the DataIO from
         cur offset with nbl lines of nbb bytes.
         """
-        if cur is None: cur=self.cur
-        if nbb is None: nbb=self.nbb
-        if nbl is None: nbl=self.nbl
+        if cur is None:
+            cur = self.cur
+        if nbb is None:
+            nbb = self.nbb
+        if nbl is None:
+            nbl = self.nbl
         self.cur = cur
         self.nbb = nbb
         self.nbl = nbl
         t = vltable()
+        t.header = "hexdump"
         t.rowparams["sep"] = icons.sep
         for l in range(self.nbl):
-            r = [(Token.Address, "%08x"%self.cur), (Token.Column, "")]
-            data = self.of[self.cur: self.cur+self.nbb]
-            s = " ".join(["%02x"%d for d in data])
+            r = [(Token.Address, "%08x" % self.cur), (Token.Column, "")]
+            data = self.of[self.cur : self.cur + self.nbb]
+            if isinstance(data, bytes):
+                s = " ".join("%02x" % d for d in data)
+            else:
+                s = []
+                for d in data:
+                    if isinstance(d, bytes):
+                        s.append(" ".join("%02x" % x for x in d))
+                    else:
+                        s.append(" ".join(["??"] * d.length))
+                s = " ".join(s)
             # add extra space
-            s = s[0:23]+" "+s[23:]
+            s = s[0:23] + " " + s[23:]
             r.append((Token.Literal, s))
-            r.append((Token.Column,""))
-            s = "".join([chr(x) if 32<=x<=127 else '.' for x in data])
+            r.append((Token.Column, ""))
+            B = []
+            for x in filter(None, s.split(" ")):
+                v = 0 if "?" in x else int(x, 16)
+                if 32 <= v <= 127:
+                    B.append(chr(v))
+                else:
+                    B.append(".")
+            s = "".join(B)
             r.append((Token.Literal, s))
             self.cur += self.nbb
             t.addrow(r)
@@ -191,21 +256,20 @@ class blockView(View):
         if isinstance(ins2, str):
             ins2 = [(Token.Literal, ins2)]
         try:
-            b = "'%s'"%("".join(["%02x" % x for x in bytes(i.bytes)]))
+            b = "'%s'" % ("".join(["%02x" % x for x in bytes(i.bytes)]))
         except TypeError:
-            b = "'%s'"%("--"*(i.length))
+            b = "'%s'" % ("--" * (i.length))
         ins = [
             (Token.Address, "{}".format(str(i.address))),
-            (Token.Literal, "  "),
             (Token.Column, ""),
         ]
         if conf.Code.bytecode:
             ins.extend([(Token.Literal, b), (Token.Column, "")])
         T = []
-        for t,v in ins+ins2:
-            if t!=Token.Column:
-                t = t.__dict__.get(flavor,t)
-            T.append((t,v))
+        for t, v in ins + ins2:
+            if flavor and t != Token.Column:
+                t = getattr(t, flavor)
+            T.append((t, v))
         return T
 
     def _vltable(self, **kargs):
@@ -220,10 +284,9 @@ class blockView(View):
             pad = conf.Code.padding
             T.colsize[1] += pad
         if conf.Code.header:
-            th = " block %s ".center(32,icons.hor)
-            T.header = (th % self.of.address).ljust(T.width, icons.hor)
+            T.header = "block %s" % self.of.address
         if conf.Code.footer:
-            T.footer = icons.hor * T.width
+            T.footer = "%d instructions" % len(self.of.instr)
         return T
 
 
@@ -244,7 +307,7 @@ class mapperView(View):
     def _vltable(self, **kargs):
         t = vltable(**kargs)
         t.rowparams["sep"] = icons.lar
-        for (l, v) in self.of:
+        for l, v in self.of:
             if l._is_reg:
                 if l.etype & regtype.FLAGS:
                     t.addrow(l.toks(**kargs) + [(Token.Literal, ":")])
@@ -267,10 +330,7 @@ class mapperView(View):
 
 class mmapView(View):
     """Class that implements view of MemoryMap objects.
-    A mmapView additionnally implements the _vltable method which allows to
-    pretty print the memory through ui.render.highlight method.
-    The str() representation of a memoryView instance uses this pretty printer
-    through engines' pp method.
+    A mmapView implements the _vltable method for engines' pretty printer (pp).
     """
 
     def __init__(self, m):
@@ -279,21 +339,23 @@ class mmapView(View):
     def _vltable(self, **kargs):
         t = vltable(**kargs)
         t.rowparams["sep"] = icons.sep
-        for k,z in self.of._zones.items():
+        for k, z in self.of._zones.items():
             if k is None:
                 a = ""
             else:
                 a = str(k)
             for o in z._map:
                 lv = []
-                lv.append((Token.Address,"%s%+08x"%(a,o.vaddr)))
-                lv.append((Token.Column,""))
+                lv.append((Token.Address, "%s%+08x" % (a, o.vaddr)))
+                lv.append((Token.Column, ""))
                 data = str(o.data)
-                lv.append((Token.Literal,data))
-                lv.append((Token.Column,""))
-                lv.append((Token.Address,".%+08x"%(o.end)))
+                if len(data) > 16:
+                    data = data[:16] + icons.dots
+                lv.append((Token.Literal, data))
+                lv.append((Token.Column, ""))
+                lv.append((Token.Address, ".%+08x" % (o.end)))
                 t.addrow(lv)
-            t.addrow((Token.Memory,icons.hor*8))
+            t.addrow([(Token.Memory, icons.hor * 8)])
         return t
 
 
@@ -328,6 +390,7 @@ class funcView(View):
 
 
 class xfuncView(View):
+    """Class that implements view for "external" functions."""
 
     def __init__(self, xfunc):
         super().__init__(of=xfunc)
@@ -350,31 +413,36 @@ class execView(View):
     pretty print various tasks' properties or expressions' from current state.
     """
 
-    def __init__(self,of):
+    def __init__(self, of):
         super().__init__(of)
-
 
     def _vltable(self, **kargs):
         return self.title()
 
-    def title(self,more=None):
+    def title(self, header="", more=None):
         t = vltable()
+        t.header = header
         t.rowparams["sep"] = icons.tri
+        t.rowparams["wrap"] = False
         name = self.of.__module__
-        if name.endswith('__main__'):
+        if name.endswith("__main__"):
             name = self.of.__class__.__name__
-        t.addrow([(Token.Column,''),
-                  (Token.String, self.of.bin.filename),
-                  (Token.Column,''),
-                  (Token.Address, self.of.bin.__class__.__name__),
-                  (Token.Column,''),
-                  (Token.Address, name)])
+        t.addrow(
+            [
+                (Token.Column, ""),
+                (Token.String, self.of.bin.filename),
+                (Token.Column, ""),
+                (Token.Address, self.of.bin.__class__.__name__),
+                (Token.Column, ""),
+                (Token.Address, name),
+            ]
+        )
         if not more and hasattr(self.of, "title_info"):
-            more = [(Token.Alert,x) for x in self.of.title_info()]
+            more = [(Token.Alert, x) for x in self.of.title_info()]
         if more:
             r = t.rows[0]
             for x in more:
-                r.cols[-1].append((Token.Column,''))
+                r.cols[-1].append((Token.Column, ""))
                 r.cols.append([x])
             t.update()
         return t
@@ -385,109 +453,173 @@ class execView(View):
 
     @property
     def checksec(self):
-        if hasattr(self.of.bin,"checksec"):
+        if hasattr(self.of.bin, "checksec"):
             t = vltable()
             t.rowparams["sep"] = icons.sep
             s = self.of.bin.checksec()
-            tokattr = lambda v: Token.Good if v else Token.Alert
+
+            def tokattr(v):
+                return Token.Good if v else Token.Alert
+
             r = []
-            for k,v in s.items():
-                r.append((tokattr(v), "%s: %s"%(k,v)))
-                r.append((Token.Column,""))
+            for k, v in s.items():
+                r.append((tokattr(v), "%s: %s" % (k, v)))
+                r.append((Token.Column, ""))
             r.pop()
             t.addrow(r)
         else:
-            t=""
+            t = ""
         return t
 
-    @property
-    def registers(self):
-        if hasattr(self.of.cpu,"registers"):
-            t = vltable()
-            t.rowparams["sep"] = ': '
+    def registers(self, header=""):
+        t = vltable()
+        t.header = header
+        if hasattr(self.of.cpu, "registers"):
+            t.rowparams["sep"] = ": "
             for _r in self.of.cpu.registers:
                 if _r.etype & regtype.FLAGS:
                     if _r._is_slc:
-                        sta,sto = _r.pos,_r.pos+_r.size
+                        sta, sto = _r.pos, _r.pos + _r.size
                         _r = _r.x
                     else:
-                        sta,sto = 0,_r.size
-                    val = [(Token.Literal,'[ ')]
-                    for pos,sz in _r._subrefs:
-                        if (sta<=pos<sto) and (sz<(sto-sta)):
+                        sta, sto = 0, _r.size
+                    val = [(Token.Literal, "[ ")]
+                    for pos, sz in _r._subrefs:
+                        if (sta <= pos < sto) and (sz < (sto - sta)):
                             _s = _r[pos : pos + sz]
                             val.extend(_s.toks())
-                            val.append((Token.Literal, ':'))
+                            val.append((Token.Literal, ":"))
                             val.extend(self.of.state(_s).toks())
                             val.append((Token.Literal, icons.sep))
                     val.pop()
-                    val.append((Token.Literal,' ]'))
+                    val.append((Token.Literal, " ]"))
                 elif not _r.etype & regtype.OTHER:
                     val = self.of.state(_r).toks()
                 else:
                     val = None
                 if val:
                     t.addrow(_r.toks() + [(Token.Column, "")] + val)
-        else:
-            t = ""
         return t
 
-    def memory(self,start,nbl=1,nbc=1,w=None):
+    def memory(self, start, nbl=1, nbc=1, w=None):
         t = vltable()
-        t.rowparams["sep"] = ' '
-        aw = self.of.cpu.PC().size
+        t.header = "memory"
+        t.rowparams["sep"] = " "
+        aw = self.of.cpu.getPC().size
+        if isinstance(start, int):
+            start = self.of.cpu.cst(start, size=aw)
         if w is None:
-            w=aw
-        if isinstance(start,int):
-            start = self.of.cpu.cst(start,size=aw)
-        if hasattr(start,'etype'):
+            if start._is_cst:
+                dv = dataView(self.of.state.mmap)
+                try:
+                    cur = self.of.cpu.mmu_get_paddr(self.of.state, start.v)
+                except (AttributeError, MemoryError):
+                    cur = start.v
+                return dv.hexdump(cur, nbl, nbc)
+            else:
+                logger.warning("hexdump: start address not a cst? (%s)" % start)
+                return t
+        if hasattr(start, "etype"):
             if start._is_mem:
                 cur = start
             else:
-                cur = self.of.cpu.mem(start,size=w)
+                cur = self.of.cpu.mem(start, size=w)
         for i in range(nbl):
-            r = cur.a.toks() + [(Token.Column,""), (Token.Literal, icons.ver+" ")]
+            r = cur.a.toks() + [(Token.Column, ""), (Token.Literal, icons.ver + " ")]
             for j in range(nbc):
-                r.extend(self.of.state(cur).toks())
+                try:
+                    r.extend(self.of.state(cur).toks())
+                except MemoryError:
+                    t.addrow(r)
+                    return t
                 r.append((Token.Column, ""))
-                cur.a.disp += w//8
+                cur.a.disp += w // 8
             r.pop()
             t.addrow(r)
         return t
 
-    def code(self,blk):
+    def strings(self, start, size=None):
+        t = vltable()
+        t.header = "strings"
+        t.rowparams["sep"] = " "
+        aw = self.of.cpu.getPC().size
+        if isinstance(start, int):
+            start = self.of.cpu.cst(start, size=aw)
+        if start._is_cst:
+            try:
+                cur = self.of.cpu.mmu_get_paddr(self.of.state, start.v)
+            except AttributeError:
+                cur = start.v
+        else:
+            logger.warning("strings: start address not a cst? (%s)" % start)
+            return t
+        s = b""
+
+        def concretize(data):
+            res = b""
+            for x in data:
+                if isinstance(x, bytes):
+                    res += x
+                else:
+                    res += b"\0" * x.length
+            return res
+
+        while s.find(b"\0") == -1:
+            s += concretize(self.of.state.mmap.read(cur, size or 256))
+            if size:
+                break
+            else:
+                cur += 256
+        if size is None:
+            s = s[: s.find(b"\0") + 1]
+        pos = 0
+        while pos < len(s):
+            r = [(Token.Address, str(start + pos)), (Token.Column, "")]
+            npos = s.find(b"\0", pos)
+            if npos == -1:
+                npos = len(s)
+            ss = s[pos : npos + 1]
+            if len(ss) > 0:
+                r.extend(
+                    [(Token.String, ss), (Token.Column, ""), (Token.Constant, len(ss))]
+                )
+            pos = npos + 1
+            t.addrow(r)
+        return t
+
+    def code(self, blk):
         """
         Enhance a code block with info from the task/OS.
         This allows any symbol associated with an address/constant to
         be displayed as comment, optionally adds the segment name
         (ie ELF section name) to the location if found.
         """
-        if not isinstance(blk,vltable):
+        if not isinstance(blk, vltable):
             T = blk.view._vltable()
         else:
             T = blk
-        for i,r in enumerate(T.rows):
-            for c in r.cols[2:]: #skip address and bytecode columns
-                address = int(r.cols[0][0][1],0)
-                if (name:=self.of.symbol_for(address)):
+        for i, r in enumerate(T.rows):
+            for c in r.cols[2:]:  # skip address and bytecode columns
+                address = int(r.cols[0][0][1], 0)
+                if name := self.of.symbol_for(address):
                     r.label = (Token.Name, name)
-                for i in range(len(c)-1,-1,-1):
-                    tn,tv = c[i]
+                for i in range(len(c) - 1, -1, -1):
+                    tn, tv = c[i]
                     # we take 1st level token id. For example,
                     # Token.Address.Mark is reduced to Token.Address
                     tn = tn.split()
-                    use_Mark = '.Mark' in str(tn)
+                    use_Mark = ".Mark" in str(tn)
                     tn = tn[1]
                     if tn == Token.Memory:
                         tn = Token.Address
-                        tv = re.findall(r'(0x[0-9a-zA-Z]+)',tv)
-                        if len(tv)==1:
+                        tv = re.findall(r"(0x[0-9a-zA-Z]+)", tv)
+                        if len(tv) == 1:
                             tv = tv[0]
                         else:
                             continue
-                    if tn in (Token.Address,Token.Constant):
+                    if tn in (Token.Address, Token.Constant):
                         try:
-                            v = int(tv,0)
+                            v = int(tv, 0)
                             tv = self.of.symbol_for(v)
                         except ValueError:
                             tv = None
@@ -496,7 +628,7 @@ class execView(View):
                                 tn = Token.Comment.Mark
                             else:
                                 tn = Token.Comment
-                            c.insert(i+1,(tn,tv))
+                            c.insert(i + 1, (tn, tv))
             if conf.Code.segment:
                 try:
                     segname = self.of.segment_for(address)
@@ -507,18 +639,18 @@ class execView(View):
                         tn = Token.Segment.Mark
                     else:
                         tn = Token.Segment
-                    r.cols[0].insert(1,(tn,segname))
+                    r.cols[0].insert(1, (tn, segname))
         T.update()
-        if len(T.rows)>conf.Code.lines:
-            T.rows = T.rows[:conf.Code.lines]
-            T.addrow([(Token.Literal,icons.dots)])
+        if len(T.rows) > conf.Code.lines:
+            T.rows = T.rows[: conf.Code.lines]
+            T.addrow([(Token.Literal, icons.dots)])
         if conf.Code.bytecode:
             pad = conf.Code.padding
             T.colsize[1] += pad
         if T.header:
-            T.header = T.header.ljust(T.width, icons.hor)
+            T.header = T.header
         if T.footer:
-            T.footer = T.footer.ljust(T.width, icons.hor)
+            T.footer = T.footer
         return T
 
 
@@ -526,43 +658,31 @@ class execView(View):
 
 
 class emulView(View):
+    """
+    An emulView implements the view for amoco.emu.emul instances.
+    It defines its own __str__ as a series of "frames" with pretty printed
+    vtables build from other views.
+    """
 
-    def __init__(self,of,frames=None):
+    def __init__(self, of, frames=None):
         super().__init__(of)
-        self.term = Terminal()
         if frames is None:
-            frames = [self.frame_bin,
-                      self.frame_regs,
-                      self.frame_code,
-                      self.frame_stack,
-                     ]
+            frames = [
+                self.frame_bin,
+                self.frame_callstack,
+                self.frame_regs,
+                self.frame_code,
+                self.frame_stack,
+            ]
         self.frames = frames
 
-    def line(self,title=None):
-        w = self.term.width
-        p = icons.hor*3
-        if title:
-            s = "%s[ %s ]%s"%(p,title,p)
-        else:
-            s = icons.hor
-        s = s.rjust(w,icons.hor)
-        return self.term.bright_black+s+self.term.normal
-
     def frame_bin(self):
-        t = []
-        t.append(self.line("bin"))
-        t.append(str(self.of.task.view.title()))
-        return t
+        return self.of.task.view.title("[ bin ]")
 
     def frame_regs(self):
-        t = []
-        t.append(self.line("regs"))
-        t.append(str(self.of.task.view.registers))
-        return t
+        return self.of.task.view.registers("[ regs ]")
 
     def frame_code(self):
-        t = []
-        t.append(self.line("code"))
         here = self.of.task.state(self.of.pc)
         T = vltable()
         flavor = None
@@ -571,59 +691,57 @@ class emulView(View):
             b = next(blk)
         except StopIteration:
             b = None
-            logger.warning("no block at address %s"%here)
+            logger.warning("no block at address %s" % here)
         else:
+            nextb = None
             try:
                 nextb = next(blk)
             except StopIteration:
-                nextb = None
+                logger.warning("end of blocks?")
             blk.close()
         self.of.block_cur = b
         self.of.block_nxt = nextb
         if b is not None:
             delay_slot = False
             for i in b.instr:
-                if (i.address == here):
-                    flavor = 'Mark'
-                    if i.misc.get('delayed',False):
+                if i.address == here:
+                    flavor = "Mark"
+                    if i.misc.get("delayed", False):
                         delay_slot = True
                 elif delay_slot:
-                    flavor = 'Mark'
+                    flavor = "Mark"
                     delay_slot = False
                 else:
                     flavor = None
                 T.addrow(blockView.instr(i, flavor))
             if nextb is not None:
                 for i in nextb.instr:
-                    if len(T.rows)>(conf.Code.lines-conf.Code.hist):
+                    if len(T.rows) > (conf.Code.lines - conf.Code.hist):
                         break
                     T.addrow(blockView.instr(i))
-        for index in range(1,conf.Code.hist+1):
+        for index in range(1, conf.Code.hist + 1):
             try:
                 i = self.of.hist[-index]
             except IndexError:
                 break
-            if (here-i.address)>i.length:
-                T.rows.insert(0,tokenrow([(Token.Literal,'|')]))
+            if (here - i.address) > i.length:
+                T.rows.insert(0, tokenrow([(Token.Literal, "|")]))
             if i.address < here:
-                T.rows.insert(0,tokenrow(blockView.instr(i)))
+                T.rows.insert(0, tokenrow(blockView.instr(i)))
                 here = i.address
+        # add info (symbols, marks) from task OS/state:
         T = self.of.task.view.code(T)
-        T.header = T.footer = ""
-        rest = self.term.width - T.width
-        T.addcolsize(-1,rest)
-        t.append(str(T))
-        if hasattr(self.of.task,"helper_code"):
+        # add header infos:
+        if hasattr(self.of.task, "helper_code"):
             infos = self.of.task.helper_code()
-            if 'cs_base' in infos:
-                base = infos['cs_base']
-                t[0] = self.line("code (cs_base: %s)"%base)
-        return t
+            if "cs_base" in infos:
+                base = infos["cs_base"]
+                T.header = "[ code (cs_base: %s) ]" % base
+        return T
 
     def frame_stack(self):
-        t = []
-        t.append(self.line("stack"))
-        table = None
+        table = vltable()
+        table.header = "[ stack ]"
         flag_more = False
         sp = []
         for x in self.of.task.cpu.registers:
@@ -632,79 +750,80 @@ class emulView(View):
                 sp.append(v)
         # size of stacks' elements:
         sz = self.of.pc.length
-        if len(sp)==0:
+        if len(sp) == 0:
             logger.warning("stack pointer not found")
-            return t
+            return table
         delta = conf.Emu.stacksize
         # if we have more than 1 stack registers (like esp, ebp)
         # top of stack (esp) MUST appear *before* base (ebp)
         # we can adjust delta to show the full strack frame:
-        if len(sp)==2:
+        if len(sp) == 2:
             base = sp[1]
-            if base.etype&et_vrb and base._is_cst and base.value!=0:
-                delta = base-sp[0]
+            if base.etype & et_vrb and base._is_cst and base.value != 0:
+                delta = base - sp[0]
                 if delta._is_cst:
                     delta = delta.value
-                if delta<0:
+                if delta < 0:
                     logger.warning("empty stack")
-                if delta>conf.Emu.stacksize:
+                if delta > conf.Emu.stacksize:
                     flag_more = True
                     delta = conf.Emu.stacksize
         # if a stack helper is defined in the task object, we
         # let it possibly adjust sp expression, delta, sz, or add
         # some info in the output.
-        if hasattr(self.of.task,"helper_stack"):
-            sp,delta,sz,info = self.of.task.helper_stack(sp,delta)
-            t[0] = self.line("stack (%s)"%info)
+        if hasattr(self.of.task, "helper_stack"):
+            sp, delta, sz, info = self.of.task.helper_stack(sp, delta)
+            table.header = "[ stack (%s) ]" % info
         else:
             sp = sp[0]
-        if not (sp._is_cst and sp.value==0):
-            table = self.of.task.view.memory(sp,delta//sz)
+        if not (sp._is_cst and sp.value == 0):
+            table.rows = self.of.task.view.memory(sp, delta // sz, 1, sz * 8).rows
             if conf.Emu.stackdown:
                 table.rows = table.rows[::-1]
-            t.append(str(table))
             if conf.Emu.stackdown and flag_more:
-                t.insert(1,icons.dots)
+                table.rows.insert(0, tokenrow([(Token.Literal, icons.dots)]))
             elif flag_more:
-                t.append(icons.dots)
-        return t
+                table.addrow([(Token.Literal, icons.dots)])
+        table.update()
+        return table
+
+    def frame_callstack(self):
+        p = self.engine.RichTree(self.of.hist.callstack, "callstack")
+        return p
 
     def __str__(self):
         t = []
         for f in self.frames:
             try:
-                t.extend(f())
+                t.append(self.engine.highlighted(f()))
             except Exception as e:
-                logger.warning("emulView.%s: %s"%(f.__name__,e))
-        t.append(self.line())
-        return '\n'.join(t)
+                logger.warning("emulView.%s: %s" % (f.__name__, e))
+        return "\n".join(t)
 
 
 # -------------------------------------------------------------------------------
 
 
 class archView(View):
-
-    def __init__(self,of):
+    def __init__(self, of):
         super().__init__(of)
-        self.term = Terminal()
 
-    def show_spec(self,s):
-        mnemo = s.iattr.get("mnemonic","?")
+    def show_spec(self, s):
+        mnemo = s.iattr.get("mnemonic", "?")
         specf = s.format
         return "{0:<16}: {1}".format(mnemo, specf)
 
-    def show_subtree(self,root,wh=""):
+    def show_subtree(self, root, wh=""):
         f, l = root
-        if f == 0: # leaves:
-            t = [wh+icons.hor+self.show_spec(s) for s in l]
+        if f == 0:  # leaves:
+            t = [wh + icons.hor + self.show_spec(s) for s in l]
         else:
             t = []
-            c = "%s%s[& %x =="%(wh, icons.hor, f)
-            wh += "  "+icons.ver
-            for k,fl in l.items():
-                t.append("%s %x]"%(c,k))
-                t.extend(self.show_subtree(fl,wh))
+            c = "%s%s[& %x ==" % (wh, icons.hor, f)
+            wh += "  " + icons.ver
+            for k, fl in l.items():
+                t.append("%s %x]" % (c, k))
+                t.extend(self.show_subtree(fl, wh))
         return t
 
     def __str__(self):

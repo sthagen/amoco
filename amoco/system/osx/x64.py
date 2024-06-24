@@ -4,10 +4,16 @@
 # Copyright (C) 2020 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.macho import *
+from amoco.logger import Log
+
+logger = Log(__name__)
+logger.debug("loading module")
+
+from amoco.system import macho
 from amoco.system.core import CoreExec
+from amoco.cas.expressions import top
 from amoco.code import tag
-import amoco.arch.x64.cpu_x64 as cpu
+from amoco.arch.x64.cpu_x64 import cpu
 
 # ------------------------------------------------------------------------------
 
@@ -48,23 +54,23 @@ class OS(object):
         interp = None
         # do load commands:
         for s in bprm.cmds:
-            if s.cmd == LC_LOAD_DYLINKER:
+            if s.cmd == macho.LC_LOAD_DYLINKER:
                 interp = s.offset
-            elif s.cmd == LC_SEGMENT_64:
+            elif s.cmd == macho.LC_SEGMENT_64:
                 if s.segname.startswith(b"__PAGEZERO\0"):
                     continue
                 data = bprm.readsegment(s).ljust(s.vmsize, b"\0")
                 p.state.mmap.write(s.vmaddr, data)
-            elif s.cmd in (LC_THREAD, LC_UNIXTHREAD):
-                if s.flavor == x86_THREAD_STATE64:
+            elif s.cmd in (macho.LC_THREAD, macho.LC_UNIXTHREAD):
+                if s.flavor == macho.x86_THREAD_STATE64:
                     for f in s.state.fields:
                         r = getattr(cpu, f.name)
                         p.state[r] = cpu.cst(s.state[f.name], r.size)
                     bprm.__entry = p.state[cpu.rip]
-                if s.cmd == LC_UNIXTHREAD:
+                if s.cmd == macho.LC_UNIXTHREAD:
                     do_stack = True
                     stack_size = 2 * self.PAGESIZE
-            elif s.cmd == LC_MAIN:
+            elif s.cmd == macho.LC_MAIN:
                 entry = bprm.entrypoints[0]
                 p.state[cpu.rip] = cpu.cst(entry, 64)
                 bprm.__entry = p.state[cpu.rip]
@@ -97,23 +103,23 @@ class OS(object):
         # to improve asm block views:
         p.bin.functions.update(p.bin.la_symbol_ptr)
         got = None
-        plt = p.bin.getsection('__stubs')
+        plt = p.bin.getsection("__stubs")
         if plt:
             address = plt.addr
             pltco = p.bin.readsection(plt)
-            while(pltco):
+            while pltco:
                 i = p.cpu.disassemble(pltco)
-                if i.mnemonic=='JMP' and i.operands[0]._is_mem:
+                if i.mnemonic == "JMP" and i.operands[0]._is_mem:
                     target = i.operands[0].a
                     if target.base is p.cpu.rip:
-                        target = address+i.length+target.disp
+                        target = address + i.length + target.disp
                     elif target.base._is_reg:
-                        target = got.sh_addr+target.disp
+                        target = got.sh_addr + target.disp
                     elif target.base._is_cst:
-                        target = target.base.value+target.disp
+                        target = target.base.value + target.disp
                     if target in p.bin.functions:
                         p.bin.functions[address] = p.bin.functions[target]
-                pltco = pltco[i.length:]
+                pltco = pltco[i.length :]
                 address += i.length
 
     def stub(self, refname):
@@ -121,7 +127,6 @@ class OS(object):
 
 
 class Task(CoreExec):
-
     # seqhelper provides arch-dependent information to amoco.main classes
     def seqhelper(self, seq):
         for i in seq:
@@ -185,50 +190,6 @@ class Task(CoreExec):
     def blockhelper(self, block):
         block._helper = block_helper_
         return CoreExec.blockhelper(self, block)
-
-    def funchelper(self, f):
-        # check single root node:
-        roots = f.cfg.roots()
-        if len(roots) == 0:
-            roots = filter(lambda n: n.data.misc[tag.FUNC_START], f.cfg.sV)
-            if len(roots) == 0:
-                logger.warning("no entry to function %s found" % f)
-        if len(roots) > 1:
-            logger.verbose("multiple entries into function %s ?!" % f)
-        # check start symbol:
-        elif roots[0].data.address == self.bin.entrypoints[0]:
-            f.name = "_start"
-        # get section symbol if any:
-        f.misc["section"] = section = self.bin.getinfo(f.address.value)[0]
-        rets = f.cfg.leaves()
-        if len(rets) == 0:
-            logger.warning("no exit to function %s found" % f)
-        if len(rets) > 1:
-            logger.verbose("multiple exits in function %s" % f)
-        for r in rets:
-            # export PLT external symbol name:
-            if section and section.name == ".plt":
-                if isinstance(r.data, xfunc):
-                    f.name = section.name + r.name
-            if r.data.misc[tag.FUNC_CALL]:
-                f.misc[tag.FUNC_CALL] += 1
-        if f.map:
-            # check vars & args: should reflect x64 register calling convention
-            f.misc[tag.FUNC_VAR] = []
-            f.misc[tag.FUNC_ARG] = []
-            for x in set(f.map.inputs()):
-                f.misc[tag.FUNC_IN] += 1
-                if x._is_mem and x.a.base == cpu.rsp:
-                    if x.a.disp >= 8:
-                        f.misc[tag.FUNC_ARG].append(x)
-            for x in set(f.map.outputs()):
-                if x in (cpu.rsp, cpu.rbp):
-                    continue
-                f.misc[tag.FUNC_OUT] += 1
-                if x._is_mem and x.a.base == cpu.rsp:
-                    if x.a.disp < 0:
-                        f.misc[tag.FUNC_VAR].append(x)
-
 
 def block_helper_(block, m):
     # annotations based on block semantics:

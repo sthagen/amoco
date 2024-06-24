@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
-from amoco.cas.expressions import regtype
-from amoco.arch.core import Formatter, Token
+from amoco.arch.core import Formatter
+from amoco.ui.render import Token
 
 
 def mnemo(i):
-    mn = i.mnemonic.replace('_','.').lower()
+    mn = i.mnemonic.replace("_", ".").lower()
     return [(Token.Mnemonic, "{: <12}".format(mn))]
 
 
@@ -27,10 +26,11 @@ def opers(i):
             else:
                 s.append((Token.Constant, op.__str__()))
         elif op._is_reg:
-            s.append((Token.Register, op.__str__().ljust(3,' ')))
+            s.append((Token.Register, op.__str__().ljust(3, " ")))
         elif op._is_cmp:
-            s.append((Token.Register,
-                    "/".join(x.__str__() for x in [op[0:32],op[32:64]])))
+            s.append(
+                (Token.Register, "/".join(x.__str__() for x in [op[0:32], op[32:64]]))
+            )
         s.append((Token.Literal, ", "))
     if len(s) > 0:
         s.pop()
@@ -54,4 +54,3 @@ tricore_full_formats = {
 
 TriCore_full = Formatter(tricore_full_formats)
 TriCore_full.default = format_default
-

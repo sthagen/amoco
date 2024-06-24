@@ -20,8 +20,8 @@ from amoco.logger import Log
 logger = Log(__name__)
 logger.debug("loading module")
 
-from .expressions import *
-from amoco.cas.mapper import mapper
+from . import expressions as expr
+from .mapper import model_to_mapper
 
 try:
     import z3
@@ -48,6 +48,7 @@ else:
             tactics (list, None): optional list of z3 tactics.
             timeout (int, None): optional timeout value for the z3 solver.
         """
+
         def __init__(self, eqns=None, tactics=None, timeout=None):
             self.eqns = []
             self.locs = []
@@ -67,7 +68,7 @@ else:
             for e in eqns:
                 self.eqns.append(e)
                 self.solver.add(cast_z3_bool(e, self))
-                self.locs.extend(locations_of(e))
+                self.locs.extend(expr.locations_of(e))
 
         def check(self):
             "check for satisfiability of current formulas"
@@ -81,6 +82,7 @@ else:
             if self.check() == z3.sat:
                 r = self.solver.model()
                 return r
+            return None
 
         def get_mapper(self, eqns=None):
             """
@@ -90,6 +92,7 @@ else:
             r = self.get_model(eqns)
             if r is not None:
                 return model_to_mapper(r, self.locs)
+            return None
 
         @property
         def ctr(self):
@@ -206,9 +209,9 @@ def tst_verify(e, env):
     s.solver.add(z3.Not(zt))
     rfalse = s.solver.check()
     if rtrue == z3.sat and rfalse == z3.unsat:
-        return bit1
+        return expr.bit1
     if rtrue == z3.unsat and rfalse == z3.sat:
-        return bit0
+        return expr.bit0
     if rtrue == z3.sat and rfalse == z3.sat:
         return t
     logger.verbose("undecidable tst expression")
@@ -223,7 +226,7 @@ def op_to_z3(e, slv=None):
     if op.symbol == ">>":
         op = z3.LShR
     elif op.symbol == "//":
-        op = operator.rshift
+        op = expr.operator.rshift
     elif op.symbol == ">>>":
         op = z3.RotateRight
     elif op.symbol == "<<<":
@@ -269,7 +272,7 @@ def vec_to_z3(e, slv=None):
         zx = x.to_smtlib()
         beqs.append(zx)
     if len(beqs) == 0:
-        return exp(e.size)
+        return expr.exp(e.size)
     if slv is None:
         # if no solver is provided, it needs to be
         # a list of boolean equations
@@ -278,7 +281,7 @@ def vec_to_z3(e, slv=None):
                 return beqs[0]
             return z3.Or(*beqs)
         else:
-            return top_to_z3(top(e.size))
+            return top_to_z3(expr.top(e.size))
     else:
         # if the solver is provided (default)
         # then a new local variable is added which
@@ -293,44 +296,22 @@ def _bool2bv1(z):
 
 
 if has_solver:
-    top.to_smtlib = top_to_z3
-    cst.to_smtlib = cst_to_z3
-    cfp.to_smtlib = cfp_to_z3
-    reg.to_smtlib = reg_to_z3
-    comp.to_smtlib = comp_to_z3
-    slc.to_smtlib = slc_to_z3
-    ptr.to_smtlib = ptr_to_z3
-    mem.to_smtlib = mem_to_z3
-    tst.to_smtlib = tst_to_z3
-    tst.verify = tst_verify
-    op.to_smtlib = op_to_z3
-    uop.to_smtlib = uop_to_z3
-    vec.to_smtlib = vec_to_z3
-    vecw.to_smtlib = top_to_z3
+    expr.top.to_smtlib = top_to_z3
+    expr.cst.to_smtlib = cst_to_z3
+    expr.cfp.to_smtlib = cfp_to_z3
+    expr.reg.to_smtlib = reg_to_z3
+    expr.comp.to_smtlib = comp_to_z3
+    expr.slc.to_smtlib = slc_to_z3
+    expr.ptr.to_smtlib = ptr_to_z3
+    expr.mem.to_smtlib = mem_to_z3
+    expr.tst.to_smtlib = tst_to_z3
+    expr.tst.verify = tst_verify
+    expr.op.to_smtlib = op_to_z3
+    expr.uop.to_smtlib = uop_to_z3
+    expr.vec.to_smtlib = vec_to_z3
+    expr.vecw.to_smtlib = top_to_z3
 
 
 def to_smtlib(e, slv=None):
     "return the z3 smt form of expression e"
     return e.to_smtlib(slv)
-
-
-def model_to_mapper(r, locs):
-    "return an amoco mapper based on given locs for the z3 model r"
-    m = mapper()
-    mlocs = []
-    for l in set(locs):
-        if l._is_mem:
-            mlocs.append(l)
-        else:
-            x = r.eval(l.to_smtlib())
-            try:
-                m[l] = cst(x.as_long(), l.size)
-            except AttributeError:
-                pass
-    for l in mlocs:
-        x = r.eval(l.to_smtlib())
-        try:
-            m[l] = cst(x.as_long(), l.size)
-        except AttributeError:
-            pass
-    return m

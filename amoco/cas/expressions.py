@@ -17,6 +17,7 @@ from amoco.logger import Log
 logger = Log(__name__)
 logger.debug("loading module")
 from amoco.ui import render
+from amoco.ui.graphics import Engine
 import operator
 
 
@@ -61,7 +62,7 @@ def _checkarg_slice(f):
     def checkarg_slice(self, *args):
         i = args[0]
         if isinstance(i, slice):
-            if i.step != None:
+            if i.step is not None:
                 raise ValueError(i)
             if i.start < 0 or i.stop > self.size:
                 logger.error("size mismatch")
@@ -75,6 +76,7 @@ def _checkarg_slice(f):
         return f(self, *args)
 
     return checkarg_slice
+
 
 # expression types:
 
@@ -94,13 +96,13 @@ et_tst = 0x02000
 et_eqn = 0x04000
 et_vec = 0x08000
 et_cmp = 0x10000
-et_blb = 0x20000
-et_msk = 0x3ffff
+et_msk = 0x3FFFF
 
 # ------------------------------------------------------------------------------
 # exp is the core class for all expressions.
 # It defines mandatory attributes, shared methods like dumps/loads, etc.
 # ------------------------------------------------------------------------------
+
 
 class exp(object):
     """the core class for all expressions.
@@ -115,6 +117,7 @@ class exp(object):
     Note:
         len(exp) returns the byte size, assuming that size is a multiple of 8.
     """
+
     etype = 0
     __slots__ = ["size", "sf"]
 
@@ -178,10 +181,13 @@ class exp(object):
 
     def __unicode__(self):
         if self._is_top:
-            return render.icons.top+("%d" % self.size)
+            return render.icons.top + ("%d" % self.size)
         if not self._is_def:
-            return render.icons.bot+("%d" % self.size)
+            return render.icons.bot + ("%d" % self.size)
         raise ValueError("void expression")
+
+    def __format__(self, format_spec):
+        return str(self)
 
     def __str__(self):
         res = self.__unicode__()
@@ -196,7 +202,7 @@ class exp(object):
 
     def pp(self, **kargs):
         "pretty-printed string of the expression"
-        return render.highlight(self.toks(**kargs))
+        return Engine.engine.highlight(self.toks(**kargs))
 
     def bit(self, i):
         "extract i-th bit expression of the expression"
@@ -289,10 +295,6 @@ class exp(object):
 
     @_checkarg_numeric
     def __div__(self, n):
-        return oper(OP_DIV, self, n)
-
-    @_checkarg_numeric
-    def __truediv__(self, n):
         return oper(OP_DIV, self, n)
 
     @_checkarg_numeric
@@ -407,7 +409,7 @@ class exp(object):
         logger.warning("no SMT solver defined")
         raise NotImplementedError
 
-    def is_(self,t):
+    def is_(self, t):
         return t & self.etype
 
     def set_top(self):
@@ -416,39 +418,51 @@ class exp(object):
     @property
     def _is_def(self):
         return self.etype > 0
+
     @property
     def _is_top(self):
         return self.etype < 0
+
     @property
     def _is_cst(self):
         return et_cst & self.etype
+
     @property
     def _is_reg(self):
         return et_reg & self.etype
+
     @property
     def _is_cmp(self):
         return et_cmp & self.etype
+
     @property
     def _is_slc(self):
         return et_slc & self.etype
+
     @property
     def _is_mem(self):
         return et_mem & self.etype
+
     @property
     def _is_ext(self):
         return et_ext & self.etype
+
     @property
     def _is_lab(self):
         return et_lab & self.etype
+
     @property
     def _is_ptr(self):
         return et_ptr & self.etype
+
     @property
     def _is_tst(self):
         return et_tst & self.etype
+
     @property
     def _is_eqn(self):
         return et_eqn & self.etype
+
     @property
     def _is_vec(self):
         return et_vec & self.etype
@@ -464,7 +478,8 @@ class top(exp):
     algebra. Any expression that involves a top
     expression results in a top expression.
     """
-    etype = -et_msk-1
+
+    etype = -et_msk - 1
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
 
@@ -476,6 +491,7 @@ class top(exp):
 # cst holds numeric immediate values
 # -----------------------------------
 
+
 class cst(exp):
     """
     cst expression represents concrete values (constants).
@@ -484,6 +500,7 @@ class cst(exp):
         value (int): get the integer of the expression, taking into account
                      the sign flag.
     """
+
     __slots__ = ["v"]
     etype = et_cst
     __hash__ = exp.__hash__
@@ -523,12 +540,12 @@ class cst(exp):
         "cast into a symbol expression associated to name ref"
         return sym(ref, self.v, self.size)
 
-    def to_bytes(self,endian=1):
+    def to_bytes(self, endian=1):
         s = []
         v = self.v
-        for i in range(0,self.size,8):
-            s.append(v&0xff)
-            v = v>>8
+        for i in range(0, self.size, 8):
+            s.append(v & 0xFF)
+            v = v >> 8
         return bytes(s[::endian])
 
     # eval of cst is always itself: (sf flag conserved)
@@ -607,13 +624,6 @@ class cst(exp):
             return exp.__truediv__(self, n)
 
     @_checkarg_numeric
-    def __div__(self, n):
-        if n._is_cst:
-            return cst(self.value // n.value, self.size)
-        else:
-            return exp.__div__(self, n)
-
-    @_checkarg_numeric
     def __mod__(self, n):
         if n._is_cst:
             return cst(self.value % n.value, self.size)
@@ -681,7 +691,7 @@ class cst(exp):
 
     @_checkarg_numeric
     def __rpow__(self, n):
-        return n ** self
+        return n**self
 
     @_checkarg_numeric
     def __rdiv__(self, n):
@@ -762,6 +772,7 @@ assert bool(bit1)
 
 class sym(cst):
     "symbol expression extends cst with a reference name for pretty printing"
+
     __slots__ = ["ref"]
     __hash__ = cst.__hash__
     __eq__ = exp.__eq__
@@ -776,6 +787,7 @@ class sym(cst):
 
 class cfp(exp):
     "floating point concrete value expression"
+
     __slots__ = ["v"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -865,7 +877,7 @@ class cfp(exp):
 
     @_checkarg_numeric
     def __rpow__(self, n):
-        return n ** self
+        return n**self
 
     @_checkarg_numeric
     def __rdiv__(self, n):
@@ -924,8 +936,10 @@ class cfp(exp):
 # reg holds 32-bit register reference (refname).
 # ------------------------------------------------------------------------------
 
+
 class reg(exp):
     "symbolic register expression"
+
     __slots__ = ["ref", "etype", "_subrefs", "__protect"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -954,7 +968,7 @@ class reg(exp):
         return self
 
     def __setattr__(self, a, v):
-        if a == "size" and self.__protect == True:
+        if a == "size" and self.__protect:
             raise AttributeError("protected attribute")
         exp.__setattr__(self, a, v)
 
@@ -970,15 +984,15 @@ class reg(exp):
         self.__protect = v["_reg__protect"]
 
 
-
 class regtype(object):
     """
     decorator and context manager (with...) for associating
     a register to a specific category among STD (standard),
     PC (program counter), FLAGS, STACK, OTHER.
     """
-    STD   = 0x00
-    PC    = 0x10
+
+    STD = 0x00
+    PC = 0x10
     FLAGS = 0x20
     STACK = 0x40
     OTHER = 0x80
@@ -1000,7 +1014,7 @@ class regtype(object):
         regtype.cur = None
 
 
-is_reg_pc    = regtype(regtype.PC)
+is_reg_pc = regtype(regtype.PC)
 is_reg_flags = regtype(regtype.FLAGS)
 is_reg_stack = regtype(regtype.STACK)
 is_reg_other = regtype(regtype.OTHER)
@@ -1009,8 +1023,10 @@ is_reg_other = regtype(regtype.OTHER)
 # ext holds external symbols used by the dynamic linker.
 # ------------------------------------------------------------------------------
 
+
 class ext(reg):
     "external reference to a dynamic (lazy or non-lazy) symbol"
+
     __hash__ = reg.__hash__
     __eq__ = exp.__eq__
 
@@ -1025,8 +1041,9 @@ class ext(reg):
         # add the instruction interface:
         self.address = None
         self.operands = []
+        self.mnemonic = str(self)
         self.misc = {}
-        self.type = 2 # type_control_flow
+        self.type = 2  # type_control_flow
 
     def __unicode__(self):
         return "@%s" % self.ref
@@ -1041,7 +1058,7 @@ class ext(reg):
     def call(self, env, **kargs):
         "explicit call to the ext's stub"
         logger.info("stub %s explicit call" % self.ref)
-        if not "size" in kargs:
+        if "size" not in kargs:
             kargs.update(size=self.size)
         try:
             res = self.stub(env, **kargs)
@@ -1057,20 +1074,25 @@ class ext(reg):
         f = self.stub
         f(env, **self._subrefs)
 
+
 # ------------------------------------------------------------------------------
 # lab holds labels/symbols, e.g. from relocations
 # ------------------------------------------------------------------------------
 
+
 class lab(ext):
     "label expression used by the assembler"
+
     __hash__ = ext.__hash__
     __eq__ = exp.__eq__
 
     def __init__(self, refname, **kargs):
-        super().__init__(refname,**kargs)
+        super().__init__(refname, **kargs)
         self.etype |= et_lab
 
+
 # ------------------------------------------------------------------------------
+
 
 def composer(parts):
     """
@@ -1090,7 +1112,9 @@ def composer(parts):
         pos += x.size
     return c.simplify()
 
+
 # ------------------------------------------------------------------------------
+
 
 class comp(exp):
     """
@@ -1105,6 +1129,7 @@ class comp(exp):
         Each part can be accessed by 'slicing' the comp to obtain another
         comp or the part if the given slice indices match the part position.
     """
+
     __slots__ = ["smask", "parts"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -1246,7 +1271,7 @@ class comp(exp):
         # list parts that cover (start,stop) range:
         maskset = []
         for nk in filter(None, self.smask[start:stop]):
-            if not nk in maskset:
+            if nk not in maskset:
                 maskset.append(nk)
         # for each listed part, remove its covering in this range
         # and update parts and smask dicts accordingly:
@@ -1303,7 +1328,9 @@ class comp(exp):
     def depth(self):
         return sum((p.depth() for p in self))
 
+
 # ------------------------------------------------------------------------------
+
 
 class mem(exp):
     """
@@ -1319,6 +1346,7 @@ class mem(exp):
         The mods list allows to handle aliasing issues detected at fetching time
         and adjust the eval result accordingly.
     """
+
     __slots__ = ["a", "mods", "endian"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -1394,7 +1422,9 @@ class mem(exp):
             x = slc(x, r1, (sto - sta))
         return x
 
+
 # ------------------------------------------------------------------------------
+
 
 class ptr(exp):
     """
@@ -1406,6 +1436,7 @@ class ptr(exp):
         disp (int): offset relative to base for the pointer address.
         seg  (reg): segment register (or None if unused.)
     """
+
     __slots__ = ["base", "disp", "seg"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -1469,7 +1500,9 @@ class ptr(exp):
             return a
         return self.segment_handler(env, self.seg, (a, self.disp))
 
+
 # ------------------------------------------------------------------------------
+
 
 def slicer(x, pos, size):
     """
@@ -1488,7 +1521,9 @@ def slicer(x, pos, size):
             return res
         return slc(x, pos, size)
 
+
 # ------------------------------------------------------------------------------
+
 
 class slc(exp):
     """
@@ -1499,6 +1534,7 @@ class slc(exp):
         pos (int): start bit for the part.
         ref (str): an alternative symbolic name for this part.
     """
+
     __slots__ = ["x", "pos", "ref", "__protect", "etype"]
     __eq__ = exp.__eq__
 
@@ -1531,7 +1567,7 @@ class slc(exp):
         return "%s[%d:%d]" % (self.x, self.pos, self.pos + self.size)
 
     def __setattr__(self, a, v):
-        if a == "size" and self.__protect == True:
+        if a == "size" and self.__protect:
             raise AttributeError("protected attribute")
         exp.__setattr__(self, a, v)
 
@@ -1620,7 +1656,9 @@ class slc(exp):
         self.etype = v["etype"]
         self.__protect = v["_slc__protect"]
 
+
 # ------------------------------------------------------------------------------
+
 
 class tst(exp):
     """
@@ -1631,6 +1669,7 @@ class tst(exp):
         l   (exp): the resulting expression if test == bit1.
         r   (exp): the resulting expression if test == bit0.
     """
+
     __slots__ = ["tst", "l", "r"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -1639,15 +1678,15 @@ class tst(exp):
     def __new__(cls, t, l, r):
         if t is True or t is False:
             t = cst(t, 1)
-        if t._is_cst and t.size==1:
-            if t.value==1:
+        if t._is_cst and t.size == 1:
+            if t.value == 1:
                 return l
-            if t.value==0:
+            if t.value == 0:
                 return r
         return super().__new__(cls)
 
     def __getnewargs__(self):
-        return (self.tst,self.l,self.r)
+        return (self.tst, self.l, self.r)
 
     def __init__(self, t, l, r):
         if t is True or t is False:
@@ -1716,7 +1755,9 @@ class tst(exp):
     def depth(self):
         return (self.tst.depth() + self.l.depth() + self.r.depth()) / 3.0
 
+
 # ------------------------------------------------------------------------------
+
 
 def oper(opsym, l, r=None):
     "wrapper of the operator expression that detects unary operations"
@@ -1726,6 +1767,7 @@ def oper(opsym, l, r=None):
 
 
 # ------------------------------------------------------------------------------
+
 
 class op(exp):
     """
@@ -1737,6 +1779,7 @@ class op(exp):
         l (exp): left-hand expression of the operator
         r (exp): right-hand expression of the operator
     """
+
     __slots__ = ["op", "l", "r", "prop"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -1822,6 +1865,7 @@ class op(exp):
 
 # ------------------------------------------------------------------------------
 
+
 class uop(exp):
     """
     uop holds unary integer arithmetic and bitwise logic expressions
@@ -1832,6 +1876,7 @@ class uop(exp):
         l (None): returns None in case uop is treated as an op instance.
         r (exp): right-hand expression of the operator
     """
+
     __slots__ = ["op", "r", "prop"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -1874,6 +1919,7 @@ class uop(exp):
 
     def depth(self):
         return self.r.depth()
+
 
 # operators:
 # -----------
@@ -1919,7 +1965,7 @@ def ltu(x, y):
         if not (x._is_cst and y._is_cst):
             return op(OP_LTU, x, y)
     except AttributeError:
-        pass
+        logger.warning("bad ltu operation")
     x.sf = y.sf = True
     return x < y
 
@@ -1930,7 +1976,7 @@ def geu(x, y):
         if not (x._is_cst and y._is_cst):
             return op(OP_GEU, x, y)
     except AttributeError:
-        pass
+        logger.warning("bad geu operation")
     x.sf = y.sf = True
     return x >= y
 
@@ -2015,6 +2061,7 @@ class _operator(object):
 
 # basic simplifier:
 # ------------------
+
 
 def symbols_of(e):
     "returns all symbols contained in expression e"
@@ -2125,10 +2172,11 @@ def ismask(v):
 # e.l or e.r because these objects might be used also in other
 # expressions. See tests/test_cas_exp.py for details.
 
+
 def eqn2_helpers(e, bitslice=False, widening=False):
     "helpers for simplifying binary expressions"
     threshold = conf.Cas.complexity
-    if threshold>0:
+    if threshold > 0:
         if complexity(e.r) > threshold:
             e.r = top(e.r.size)
         if complexity(e.l) > threshold:
@@ -2211,7 +2259,7 @@ def eqn2_helpers(e, bitslice=False, widening=False):
         elif e.op.symbol in (OP_LSL, OP_LSR):
             c = comp(e.l.size)
             c[0 : e.l.size] = cst(0, e.l.size)
-            if e.l.size>e.r.value:
+            if e.l.size > e.r.value:
                 if e.op.symbol == OP_LSL:
                     l = e.l[0 : e.l.size - e.r.value]
                     c[e.r.value : e.l.size] = l
@@ -2246,7 +2294,7 @@ def eqn2_helpers(e, bitslice=False, widening=False):
         elif e.l._is_cmp:
             if e.op.symbol in (OP_AND, OP_OR, OP_XOR):
                 cc = comp(e.l.size)
-                for (ij, p) in e.l.parts.items():
+                for ij, p in e.l.parts.items():
                     i, j = ij
                     cc[i:j] = e.op(p, e.r[i:j])
                 return cc.simplify(bitslice=bitslice)
@@ -2285,6 +2333,7 @@ def extract_offset(e):
 
 # -----------------------------------------------------
 
+
 class vec(exp):
     """
     vec holds a list of expressions each being a possible
@@ -2295,6 +2344,7 @@ class vec(exp):
     eventually "reduce" the expression to top with a hard-limit
     currently set to op.threshold.
     """
+
     __slots__ = ["l"]
     __hash__ = exp.__hash__
     __eq__ = exp.__eq__
@@ -2356,9 +2406,7 @@ class vec(exp):
         return self
 
     def eval(self, env):
-        l = []
-        for e in self.l:
-            l.append(e.eval(env))
+        l = [e.eval(env) for e in self.l]
         return vec(l)
 
     def depth(self):
@@ -2369,9 +2417,7 @@ class vec(exp):
     @_checkarg_slice
     def __getitem__(self, i):
         sta, sto, stp = i.indices(self.size)
-        l = []
-        for e in self.l:
-            l.append(e[sta:sto])
+        l = [e[sta:sto] for e in self.l]
         return vec(l)
 
     def __contains__(self, x):
@@ -2387,6 +2433,7 @@ class vecw(top):
     the list of possible values to a fixed range and acts
     as a top (absorbing) expression.
     """
+
     __slots__ = ["l"]
     __hash__ = top.__hash__
     __eq__ = exp.__eq__
@@ -2399,7 +2446,7 @@ class vecw(top):
 
     def __unicode__(self):
         s = ",".join(["%s" % x for x in self.l])
-        return "[%s, %s]" % (s,render.icons.dots)
+        return "[%s, %s]" % (s, render.icons.dots)
 
     def toks(self, **kargs):
         t = []
@@ -2409,7 +2456,7 @@ class vecw(top):
         if len(t) > 0:
             t.pop()
         t.insert(0, (render.Token.Literal, "["))
-        t.append((render.Token.Literal, ", %s]"%render.icons.dots))
+        t.append((render.Token.Literal, ", %s]" % render.icons.dots))
         return t
 
     def eval(self, env):
@@ -2419,8 +2466,5 @@ class vecw(top):
     @_checkarg_slice
     def __getitem__(self, i):
         sta, sto, stp = i.indices(self.size)
-        l = []
-        for e in self.l:
-            l.append(e[sta:sto])
+        l = [e[sta:sto] for e in self.l]
         return vecw(vec(l))
-

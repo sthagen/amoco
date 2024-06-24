@@ -38,7 +38,6 @@ within an address range, or insert new objects at a given offset,
 thus allowing the "read" or "write" of expressions of those "values".
 """
 
-
 from amoco.logger import Log
 
 logger = Log(__name__)
@@ -48,6 +47,7 @@ from bisect import bisect_left
 from amoco.cas.expressions import exp
 from amoco.cas.blobs import blob
 from amoco.ui.views import mmapView
+
 
 # ------------------------------------------------------------------------------
 class MemoryMap(object):
@@ -105,7 +105,7 @@ class MemoryMap(object):
         elif address._is_ext:
             return (address, 0)
         elif address._is_cst:
-            return (None,address.v)
+            return (None, address.v)
         elif address._is_ptr:
             r, a = (address.base, address.disp)
             if r._is_cst:
@@ -134,7 +134,7 @@ class MemoryMap(object):
         if r is not None and not r._is_def:
             # write to undefined (top):
             raise MemoryMapError(address)
-        if not r in self._zones:
+        if r not in self._zones:
             z = self.newzone(r)
         else:
             z = self._zones[r]
@@ -319,7 +319,7 @@ class MemoryZone(object):
         j = self.locate(z.end)
         # h = []
         if j is None:
-            assert i is None or i==0
+            assert i is None or i == 0
             self._map.insert(0, z)
             self.__update_cache()
             return
@@ -403,18 +403,18 @@ class MemoryZone(object):
     def is_raw(self):
         return all((m.data._is_raw for m in self._map))
 
-    def dump(self,start=0,stop=0):
+    def dump(self, start=0, stop=0):
         r = self.range()
         if start < r[0]:
             start = r[0]
         if stop == 0 or stop > r[1]:
             stop = r[1]
         dump = []
-        for p in self.read(start,stop-start):
-            if hasattr(p,'etype'):
-                p = b'\0'*(p.length)
+        for p in self.read(start, stop - start):
+            if hasattr(p, "etype"):
+                p = b"\0" * (p.length)
             dump.append(p)
-        return b''.join(dump)
+        return b"".join(dump)
 
 
 # ------------------------------------------------------------------------------
@@ -449,7 +449,7 @@ class mo(object):
     def __init__(self, vaddr, data, endian=1):
         self.vaddr = vaddr
         self.data = datadiv(data, endian)
-        if isinstance(data,blob) and data.d==1:
+        if isinstance(data, blob) and data.d == 1:
             # the blob should end at vaddr so:
             self.vaddr -= data.length
 
@@ -637,6 +637,7 @@ def mergeparts(P):
         else:
             parts.append(p)
     return parts
+
 
 class MemoryMapError(Exception):
     pass

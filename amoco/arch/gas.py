@@ -405,13 +405,13 @@ class Gas:
 
         def p_statements(self, p):
             r"""statements : statements stmt
-                           | stmt"""
+            | stmt"""
             p[0] = self.blks
 
         def p_endstmt(self, p):
-            r"""endstmt : ';' 
-                        | eol
-                        | comment """
+            r"""endstmt : ';'
+            | eol
+            | comment"""
             pass
 
         def p_stmt_empty(self, p):
@@ -440,7 +440,7 @@ class Gas:
 
         def p_key_asign(self, p):
             r"""key : symbol    '=' arg endstmt
-                    | directive '=' arg endstmt"""
+            | directive '=' arg endstmt"""
             p[0] = Gas.Directive(".set", [p[1], p[3]])
 
         def p_key_instr(self, p):
@@ -449,28 +449,28 @@ class Gas:
 
         def p_instruction(self, p):
             r"""instruction : symbol isymbol
-                            | symbol """
+            | symbol"""
             p[0] = " ".join(p[1:])
 
         def p_labels(self, p):
             r"""labels : labels label
-                       | label"""
+            | label"""
             self.__makelist(p)
 
         def p_label(self, p):
-            r"""label : symbol ':' """
+            r"""label : symbol ':'"""
             p[0] = p[1]
 
         def p_args(self, p):
             r"""args : args ',' arg
-                     | arg
-                     | """
+            | arg
+            |"""
             self.__makelist(p)
 
         def p_arg_1(self, p):
             r"""arg : string
-                    | flonum
-                    | expr"""
+            | flonum
+            | expr"""
             p[0] = p[1]
 
         def p_arg_at(self, p):
@@ -479,8 +479,8 @@ class Gas:
 
         def p_expr2(self, p):
             r"""expr : expr op term"""
-            a = p[1]
-            b = p[3]
+            a = p[1]  # noqa: F841
+            b = p[3]  # noqa: F841
             p[0] = eval("a %s b" % p[2])
 
         def p_expr1(self, p):
@@ -489,51 +489,51 @@ class Gas:
 
         def p_op_arith(self, p):
             r"""op : '+'
-                   | '-'
-                   | '*'
-                   | '/'
-                   | '%'
-                   | shl
-                   | shr"""
+            | '-'
+            | '*'
+            | '/'
+            | '%'
+            | shl
+            | shr"""
             p[0] = p[1]
 
         def p_op_bit(self, p):
             r"""op : '^'
-                   | '|'
-                   | '&'
-                   | AND
-                   | OR"""
+            | '|'
+            | '&'
+            | AND
+            | OR"""
             p[0] = p[1]
 
         def p_op_comp(self, p):
             r"""op : '<'
-                   | '>'
-                   | eq
-                   | neq
-                   | leq
-                   | geq"""
+            | '>'
+            | eq
+            | neq
+            | leq
+            | geq"""
             p[0] = p[1]
 
         def p_term_unary(self, p):
             r"""term : '~' term %prec UNARYOP
-                     | '-' term %prec UNARYOP"""
+            | '-' term %prec UNARYOP"""
             if p[1] == "~":
                 p[0] = ~p[2]
             else:
                 p[0] = -p[2]
 
         def p_term_expr(self, p):
-            r"""term : '(' expr ')' """
+            r"""term : '(' expr ')'"""
             p[0] = p[2]
 
         def p_term_symbol(self, p):
             r"""term : symbol
-                     | directive"""
+            | directive"""
             p[0] = expr.reg(p[1])
 
         def p_term_number(self, p):
             r"""term : integer
-                     | character"""
+            | character"""
             p[0] = expr.cst(p[1])
 
         def p_error(self, p):
@@ -558,7 +558,7 @@ class Gas:
         except AttributeError:
             self.lexer.build(reflags=lex.re.UNICODE)
             self.parser.build()
-        except:
+        except Exception:
             logger.warning("unexpected parser error")
             return None
         try:
@@ -569,5 +569,5 @@ class Gas:
         return L
 
     def read(self, filename):
-        with file(filename, "r") as f:
+        with open(filename, "r") as f:
             return self.parse(f.read())

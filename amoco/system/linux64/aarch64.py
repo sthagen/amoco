@@ -4,9 +4,11 @@
 # Copyright (C) 2006-2019 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.elf import *
+from amoco.cas.expressions import cst, top
+from amoco.system import elf
+from amoco.system.structs import Consts
 from amoco.system.core import CoreExec
-import amoco.arch.arm.cpu_armv8 as cpu
+from amoco.arch.arm.cpu_armv8 import cpu
 
 with Consts("r_type"):
     R_AARCH64_MOVW_GOTOFF_G0 = 0x12C
@@ -178,14 +180,14 @@ class OS(object):
         self.tasks.append(p)
         # create text and data segments according to elf header:
         for s in bprm.Phdr:
-            if s.p_type == PT_INTERP:
+            if s.p_type == elf.PT_INTERP:
                 interp = bprm.readsegment(s).strip(b"\0")
-            elif s.p_type == PT_LOAD:
+            elif s.p_type == elf.PT_LOAD:
                 ms = bprm.loadsegment(s, self.PAGESIZE)
-                if ms != None:
+                if ms is not None:
                     vaddr, data = ms.popitem()
                     p.mmap.write(vaddr, data)
-            elif s.p_type == PT_GNU_STACK:
+            elif s.p_type == elf.PT_GNU_STACK:
                 # executable_stack = s.p_flags & PF_X
                 pass
         # init task state:

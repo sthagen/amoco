@@ -6,7 +6,7 @@
 
 from amoco.system.core import CoreExec
 
-from amoco.arch.msp430 import cpu
+from amoco.arch.msp430.cpu import cpu
 
 # ----------------------------------------------------------------------------
 
@@ -35,6 +35,7 @@ class MSP430(CoreExec):
             return block
         if func is not None:
             return func
+        return None
 
 
 __all__ = ["MSP430"]

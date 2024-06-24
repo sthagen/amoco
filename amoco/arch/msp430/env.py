@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc, bit0, bit1
+
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # MSP430x1xx User's Guide, Texas Instruments, 2006.
@@ -43,3 +45,5 @@ COND = {
 }
 
 registers = R
+
+internals = {}

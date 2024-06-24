@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.v850.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.v850 import env
+from amoco.arch.v850 import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_v850 = type("instruction_v850", (instruction,), {})
-instruction_v850.set_uarch(uarch)
 
 from amoco.arch.v850.formats import v850_full
 
@@ -20,10 +17,4 @@ import amoco.arch.v850.spec_v850e2s as spec
 
 disassemble = disassembler([spec], iclass=instruction_v850)
 
-
-def PC(state=None):
-    return pc
-
-
-def get_data_endian():
-    return 1
+cpu = CPU(env, asm, disassemble, env.pc)

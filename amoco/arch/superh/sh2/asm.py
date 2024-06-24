@@ -4,10 +4,11 @@
 # Copyright (C) 2018 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
-from .utils import *
+from .env import sp, pc, npc, R15, R, PR, T, M, Q, MACL, MACH, CS, SR
+from .env import mem, tst, cst, op, ext, composer, operator, geu, ltu
+from .env import bit0, bit1, OP_ASR, ror, rol
 
-from amoco.cas.utils import *
+from amoco.cas.utils import AddWithCarry, SubWithBorrow
 
 
 def __mem(a, sz):
@@ -78,7 +79,7 @@ def i_MOVML(ins, fmap):
         assert src._is_mem
         assert src.a.base == R15
         assert dst._is_reg
-        for r in R[: obj.m]:
+        for r in R[: ins.m]:
             if r == sp:
                 r = PR
             fmap[r] = fmap(src)
@@ -88,7 +89,7 @@ def i_MOVML(ins, fmap):
         assert src._is_reg
         assert dst._is_mem
         assert dst.a.base == R15
-        for r in R[obj.m :: -1]:
+        for r in R[ins.m :: -1]:
             if r == sp:
                 r = PR
             fmap[R15] = fmap(R15) - 4
@@ -103,7 +104,7 @@ def i_MOVMU(ins, fmap):
         assert src._is_mem
         assert src.a.base == R15
         assert dst._is_reg
-        for r in R[obj.m :]:
+        for r in R[ins.m :]:
             if r == sp:
                 r = PR
             fmap[r] = fmap(src)
@@ -113,7 +114,7 @@ def i_MOVMU(ins, fmap):
         assert src._is_reg
         assert dst._is_mem
         assert dst.a.base == R15
-        for r in R[obj.m :][::-1]:
+        for r in R[ins.m :][::-1]:
             if r == sp:
                 r = PR
             fmap[R15] = fmap(R15) - 4
@@ -333,8 +334,8 @@ def i_CLIPS(ins, fmap):
     elif ins.size == 16:
         ul = cst(+32767, 32)
         ll = cst(-32768, 32)
-    fmap[Rn] = fmap(tst(Rn > ul, ul, Rn))
-    fmap[CS] = fmap(tst(Rn > ul, bit1, CS))
+    fmap[Rn] = fmap(tst(Rn > ul, ul, ll))
+    fmap[CS] = bit1
 
 
 @__pc
@@ -345,7 +346,7 @@ def i_CLIPU(ins, fmap):
     elif ins.size == 16:
         ul = cst(0xFFFF, 32)
     fmap[Rn] = fmap(tst(Rn > ul, ul, Rn))
-    fmap[CS] = fmap(tst(Rn > ul, bit1, CS))
+    fmap[CS] = bit1
 
 
 @__pc
@@ -421,7 +422,7 @@ def i_DMULS(ins, fmap):
     Rm, Rn = ins.operands
     r1 = fmap(Rm).signed()
     r2 = fmap(Rn).signed()
-    x = fmap(r1 ** r2)
+    x = fmap(r1**r2)
     fmap[MACL] = x[0:32]
     fmap[MACH] = x[32:64]
 
@@ -431,7 +432,7 @@ def i_DMULU(ins, fmap):
     Rm, Rn = ins.operands
     r1 = fmap(Rm).unsigned()
     r2 = fmap(Rn).unsigned()
-    x = fmap(r1 ** r2)
+    x = fmap(r1**r2)
     fmap[MACL] = x[0:32]
     fmap[MACH] = x[32:64]
 
@@ -458,7 +459,7 @@ def i_EXTU(ins, fmap):
 @__pc
 def i_MAC(ins, fmap):
     m, n = ins.operands
-    res = fmap(m ** n) + fmap(composer([MACL, MACH]))
+    res = fmap(m**n) + fmap(composer([MACL, MACH]))
     fmap[MACL] = res[0:32]
     fmap[MACH] = res[0:32]
     postincr(ins, fmap)
@@ -623,8 +624,8 @@ def i_SLEEP(ins, fmap):
 
 @__pc
 def i_TRAPA(ins, fmap):
-    _push_(fmap,fmap(pc))
-    _push_(fmap,fmap(SR))
+    _push_(fmap, fmap(pc))
+    _push_(fmap, fmap(SR))
     fmap[pc] = ext(ins.operands[0])
 
 
@@ -660,6 +661,7 @@ def i_BT(ins, fmap):
     else:
         dst = pc
     fmap[dst] = fmap(tst(T == bit1, npc + disp, dst))
+
 
 @__pc
 def i_BRA(ins, fmap):

@@ -6,7 +6,10 @@
 
 from . import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec
+from amoco.arch.core import type_control_flow, type_data_processing, type_other
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # instruction MIPS-R3000 decoders
@@ -18,11 +21,13 @@ from amoco.arch.core import *
 
 ISPECS = []
 
+
 @ispec("32<[ 000000 .code(20) 001101]", mnemonic="BREAK")
 @ispec("32<[ 000000 .code(20) 001100]", mnemonic="SYSCALL")
 def mips1_noop(obj):
     obj.operands = []
     obj.type = type_control_flow
+
 
 @ispec("32<[ 000000 rs(5) rt(5) rd(5) 00000 100000]", mnemonic="ADD")
 @ispec("32<[ 000000 rs(5) rt(5) rd(5) 00000 100010]", mnemonic="SUB")
@@ -41,10 +46,11 @@ def mips1_drr(obj, rs, rt, rd):
     src1 = env.R[rs]
     src2 = env.R[rt]
     dst = env.R[rd]
-    if obj.mnemonic in ('SLLV','SRAV','SRLV'):
-        src1,src2 = src2,src1
+    if obj.mnemonic in ("SLLV", "SRAV", "SRLV"):
+        src1, src2 = src2, src1
     obj.operands = [dst, src1, src2]
     obj.type = type_data_processing
+
 
 @ispec("32<[ 000000 rs(5) rt(5) 00000 00000 011010]", mnemonic="DIV")
 @ispec("32<[ 000000 rs(5) rt(5) 00000 00000 011011]", mnemonic="DIVU")
@@ -56,18 +62,21 @@ def mips1_rr(obj, rs, rt):
     obj.operands = [src1, src2]
     obj.type = type_data_processing
 
+
 @ispec("32<[ 000010 t(26)]", mnemonic="J")
 @ispec("32<[ 000011 t(26)]", mnemonic="JAL")
 def mips1_jump_rel(obj, t):
-    obj.operands = [env.cst(t,26)]
+    obj.operands = [env.cst(t, 26)]
     obj.misc["delayed"] = True
     obj.type = type_control_flow
 
+
 @ispec("32<[ 000000 rs(5) 00000 rd(5) 00000 001001]", mnemonic="JALR")
 def mips1_jump_abs(obj, rs, rd):
-    obj.operands = [env.R[rd],env.R[rs]]
+    obj.operands = [env.R[rd], env.R[rs]]
     obj.misc["delayed"] = True
     obj.type = type_control_flow
+
 
 @ispec("32<[ 000000 rs(5) 00000 00000 00000 001000]", mnemonic="JR")
 def mips1_jump_abs(obj, rs):
@@ -87,6 +96,7 @@ def mips1_dri(obj, rs, rt, imm):
     obj.operands = [dst, src1, imm]
     obj.type = type_data_processing
 
+
 @ispec("32<[ 001100 rs(5) rt(5) imm(16) ]", mnemonic="ANDI")
 @ispec("32<[ 001101 rs(5) rt(5) imm(16) ]", mnemonic="ORI")
 @ispec("32<[ 001110 rs(5) rt(5) imm(16) ]", mnemonic="XORI")
@@ -96,6 +106,7 @@ def mips1_dri(obj, rs, rt, imm):
     dst = env.R[rt]
     obj.operands = [dst, src1, imm]
     obj.type = type_data_processing
+
 
 @ispec("32<[ 100000 base(5) rt(5) offset(16) ]", mnemonic="LB")
 @ispec("32<[ 101000 base(5) rt(5) offset(16) ]", mnemonic="SB")
@@ -111,8 +122,9 @@ def mips1_dri(obj, rs, rt, imm):
 @ispec("32<[ 101110 base(5) rt(5) offset(16) ]", mnemonic="SWR")
 def mips1_loadstore(obj, base, rt, offset):
     rt = env.R[rt]
-    obj.operands = [rt, env.R[base], env.cst(offset,16).signextend(32)]
+    obj.operands = [rt, env.R[base], env.cst(offset, 16).signextend(32)]
     obj.type = type_data_processing
+
 
 @ispec("32<[ 000000 00000 rt(5) rd(5) sa(5) 000000 ]", mnemonic="SLL")
 @ispec("32<[ 000000 00000 rt(5) rd(5) sa(5) 000011 ]", mnemonic="SRA")
@@ -120,25 +132,28 @@ def mips1_loadstore(obj, base, rt, offset):
 def mips1_shifts(obj, rt, rd, sa):
     dst = env.R[rd]
     src1 = env.R[rt]
-    src2 = env.cst(sa,5)
+    src2 = env.cst(sa, 5)
     obj.operands = [dst, src1, src2]
     obj.type = type_data_processing
+
 
 @ispec("32<[ 001111 00000 rt(5) imm(16) ]", mnemonic="LUI")
 def mips1_di(obj, rt, imm):
     dst = env.R[rt]
-    obj.operands = [dst, env.cst(imm,16)]
+    obj.operands = [dst, env.cst(imm, 16)]
     obj.type = type_data_processing
+
 
 @ispec("32<[ 000100 rs(5) rt(5) ~imm(16) ]", mnemonic="BEQ")
 @ispec("32<[ 000101 rs(5) rt(5) ~imm(16) ]", mnemonic="BNE")
 def mips1_branch(obj, rs, rt, imm):
     rs = env.R[rs]
     rt = env.R[rt]
-    imm = env.cst((imm<<2).int(-1), 32)
+    imm = env.cst((imm << 2).int(-1), 32)
     obj.operands = [rs, rt, imm]
     obj.misc["delayed"] = True
     obj.type = type_control_flow
+
 
 @ispec("32<[ 000001 rs(5) 00001 ~imm(16) ]", mnemonic="BGEZ")
 @ispec("32<[ 000001 rs(5) 10001 ~imm(16) ]", mnemonic="BGEZAL")
@@ -148,10 +163,11 @@ def mips1_branch(obj, rs, rt, imm):
 @ispec("32<[ 000001 rs(5) 10000 ~imm(16) ]", mnemonic="BLTZAL")
 def mips1_branch(obj, rs, imm):
     src1 = env.R[rs]
-    imm = env.cst((imm<<2).int(-1), 32)
+    imm = env.cst((imm << 2).int(-1), 32)
     obj.operands = [src1, imm]
     obj.misc["delayed"] = True
     obj.type = type_control_flow
+
 
 @ispec("32<[ 000000 00000 00000 rd(5) 00000 010000 ]", mnemonic="MFHI")
 @ispec("32<[ 000000 00000 00000 rd(5) 00000 010010 ]", mnemonic="MFLO")
@@ -160,12 +176,14 @@ def mips1_r(obj, rd):
     obj.operands = [dst]
     obj.type = type_data_processing
 
+
 @ispec("32<[ 000000 rs(5) 00000 00000 00000 010001 ]", mnemonic="MTHI")
 @ispec("32<[ 000000 rs(5) 00000 00000 00000 010011 ]", mnemonic="MTLO")
 def mips1_r(obj, rs):
     src = env.R[rs]
     obj.operands = [src]
     obj.type = type_data_processing
+
 
 @ispec("32<[ 0100 .z(2) 00010 rt(5) rd(5) 00000000000 ]", mnemonic="CFC")
 @ispec("32<[ 0100 .z(2) 00000 rt(5) rd(5) 00000000000 ]", mnemonic="MFC")
@@ -175,11 +193,13 @@ def mips1_copz_rr(obj, rt, rd):
     obj.operands = [env.R[rt], rd]
     obj.type = type_other
 
+
 @ispec("32<[ 1100 .z(2) base(5) rt(5) offset(16) ]", mnemonic="LWC")
 @ispec("32<[ 1110 .z(2) base(5) rt(5) offset(16) ]", mnemonic="SWC")
 def mips1_copz_rbo(obj, base, rt, offset):
-    obj.operands = [env.R[rt], env.R[base], env.cst(offset,16).signextend(32)]
+    obj.operands = [env.R[rt], env.R[base], env.cst(offset, 16).signextend(32)]
     obj.type = type_other
+
 
 @ispec("32<[ 0100 .z(2) 1 .cofun(25) ]", mnemonic="COP")
 def mips1_copz_rbo(obj):

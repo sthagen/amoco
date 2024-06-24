@@ -4,25 +4,20 @@
 # Copyright (C) 2012 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from collections import deque
 
 class generation(dict):
-
     def lastdict(self):
         return self
 
     def __setitem__(self, k, v):
-        self.hist = (k, self.get(k,k))
+        self.hist = (k, self.get(k, k))
         return super().__setitem__(k, v)
 
     def __getitem__(self, k):
         return self.get(k, None)
 
     def cleanup(self):
-        K = []
-        for k in self:
-            if not k._is_reg:
-                K.append(k)
+        K = [k for k in self if k._is_reg]
         for k in K:
             del self[k]
 

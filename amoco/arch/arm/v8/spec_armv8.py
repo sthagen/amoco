@@ -9,8 +9,20 @@
 
 from amoco.arch.arm.v8 import env64 as env
 
-from amoco.arch.core import *
-from .utils import *
+from amoco.cas.expressions import (
+    cst,
+    composer,
+    reg,
+)
+from amoco.arch.core import Bits, ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_cpu_state,
+    type_control_flow,
+)
+from .utils import ROR
+
+# ruff: noqa: F811
 
 
 def DecodeBitMasks(M, targs):
@@ -70,7 +82,7 @@ ISPECS = []
 
 @ispec("32[ sf 0 S 11010000 Rm(5) 000000 Rn(5) Rd(5) ]", mnemonic="ADC")
 @ispec("32[ sf 1 S 11010000 Rm(5) 000000 Rn(5) Rd(5) ]", mnemonic="SBC")
-def A64_generic(obj, sf, S, Rm, Rn, Rd):
+def A64_data_processing_reg(obj, sf, S, Rm, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     obj.setflags = S == 1
     regs = env.Xregs if sf == 1 else env.Wregs
@@ -83,7 +95,7 @@ def A64_generic(obj, sf, S, Rm, Rn, Rd):
 
 @ispec("32[ sf 0 S 01011001 Rm(5) option(3) imm3(3) Rn(5) Rd(5) ]", mnemonic="ADD")
 @ispec("32[ sf 1 S 01011001 Rm(5) option(3) imm3(3) Rn(5) Rd(5) ]", mnemonic="SUB")
-def A64_generic(obj, sf, S, Rm, option, imm3, Rn, Rd):
+def A64_data_processing_reg(obj, sf, S, Rm, option, imm3, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     obj.setflags = S == 1
     regs = env.Xregs if sf == 1 else env.Wregs
@@ -98,7 +110,7 @@ def A64_generic(obj, sf, S, Rm, option, imm3, Rn, Rd):
 
 @ispec("32[ sf 0 S 10001 shift(2) imm12(12) Rn(5) Rd(5) ]", mnemonic="ADD")
 @ispec("32[ sf 1 S 10001 shift(2) imm12(12) Rn(5) Rd(5) ]", mnemonic="SUB")
-def A64_generic(obj, sf, S, shift, imm12, Rn, Rd):
+def A64_data_processing_imm(obj, sf, S, shift, imm12, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     obj.setflags = S == 1
     regs = env.Xregs if sf == 1 else env.Wregs
@@ -117,7 +129,7 @@ def A64_generic(obj, sf, S, shift, imm12, Rn, Rd):
 
 @ispec("32[ sf 0 S 01011 shift(2) 0 Rm(5) imm6(6) Rn(5) Rd(5) ]", mnemonic="ADD")
 @ispec("32[ sf 1 S 01011 shift(2) 0 Rm(5) imm6(6) Rn(5) Rd(5) ]", mnemonic="SUB")
-def A64_generic(obj, sf, S, shift, Rm, imm6, Rn, Rd):
+def A64_data_processing_reg(obj, sf, S, shift, Rm, imm6, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     obj.setflags = S == 1
     regs = env.Xregs if sf == 1 else env.Wregs
@@ -158,7 +170,7 @@ def A64_adr(obj, p, immlo, immhi, Rd):
 @ispec(
     "32[ sf 11 100100 N immr(6) imms(6) Rn(5) Rd(5) ]", mnemonic="AND", setflags=True
 )
-def A64_generic(obj, sf, N, immr, imms, Rn, Rd):
+def A64_data_processing_reg(obj, sf, N, immr, imms, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     regs = env.Xregs if sf == 1 else env.Wregs
     if sf == 0 and N != 0:
@@ -252,7 +264,7 @@ def A64_xBFM(obj, sf, N, immr, imms, Rn, Rd):
     setflags=True,
     invert=True,
 )
-def A64_generic(obj, sf, shift, Rm, imm6, Rn, Rd):
+def A64_data_processing_reg(obj, sf, shift, Rm, imm6, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     regs = env.Xregs if sf == 1 else env.Wregs
     obj.d = sp2z(regs[Rd])
@@ -271,7 +283,7 @@ def A64_generic(obj, sf, shift, Rm, imm6, Rn, Rd):
 @ispec("32[ sf 0 0 11010110 Rm(5) 0010 11 Rn(5) Rd(5) ]", mnemonic="RORV")
 @ispec("32[ sf 0 0 11010110 Rm(5) 0000 11 Rn(5) Rd(5) ]", mnemonic="SDIV")
 @ispec("32[ sf 0 0 11010110 Rm(5) 0000 10 Rn(5) Rd(5) ]", mnemonic="UDIV")
-def A64_generic(obj, sf, Rm, Rn, Rd):
+def A64_data_processing_reg(obj, sf, Rm, Rn, Rd):
     obj.datasize = 64 if (sf == 1) else 32
     regs = env.Xregs if sf == 1 else env.Wregs
     obj.d = sp2z(regs[Rd])
@@ -313,13 +325,19 @@ def A64_msr(obj, op1, CRm, op2):
     try:
         obj.pstatefield = {
             0b000101: env.SPSel,
-            0b011110: env.DAIFSet,
-            0b011111: env.DAIFClr,
+            0b011110: env.pstate[6:10],
+            0b011111: env.pstate[6:10],
         }[op1 << 3 + op2]
     except KeyError:
         raise InstructionError(obj)
     obj.imm = env.cst(CRm, 4)
     obj.operands = [obj.pstatefield, obj.imm]
+    obj.type = type_cpu_state
+
+@ispec("32[ 1101010100 0 00 011 0010 0100 op2(2) 0 11111 ]", mnemonic="BTI")
+def A64_msr(obj, op2):
+    obj.targets = {0b00: '', 0b01: 'c', 0b10: 'j', 0b11: 'jc'}[op2]
+    obj.operands = [obj.targets]
     obj.type = type_cpu_state
 
 
@@ -360,6 +378,18 @@ def A64_B(obj, imm26):
 def A64_generic(obj, Rn):
     obj.n = sp2z(env.Xregs[Rn])
     obj.operands = [obj.n]
+    obj.type = type_control_flow
+
+@ispec("32[ 1101011 Z 0 00 11111 0000 1=A M Rn(5) Rm(5) ]", mnemonic="BRA")
+def A64_generic(obj, Z, A, M, Rn, Rm):
+    obj.Z = Z
+    obj.use_key_a = M==0
+    obj.src_is_sp = (Z==1 and Rm==31)
+    if Z==0 and Rm!=31:
+        raise InstructionError
+    obj.n = sp2z(env.Xregs[Rn])
+    obj.m = sp2z(env.Xregs[Rm])
+    obj.operands = [obj.n, obj.m]
     obj.type = type_control_flow
 
 
@@ -1166,3 +1196,6 @@ def A64_generic(obj, b5, b40, imm14, Rt):
     obj.t = sp2z(env.Xregs[Rt]) if b5 == 1 else sp2z(env.Wregs[Rt])
     obj.operands = [obj.t, obj.bitpos, obj.offset]
     obj.type = type_data_processing
+
+from . import spec_simd
+ISPECS += spec_simd.ISPECS

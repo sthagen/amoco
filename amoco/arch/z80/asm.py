@@ -4,7 +4,10 @@
 # Copyright (C) 2012 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.arch.z80.env import *
+from amoco.arch.z80.env import sp, pc, a, b, bc, bc_, de, de_, hl, hl_, iff1, iff2
+from amoco.arch.z80.env import i, r, sf, zf, hf, nf, pf, cf
+from amoco.arch.z80.env import cst, mem, slc, tst, ext, bit0, bit1
+
 
 # ------------------------------------------------------------------------------
 # low level functions :
@@ -130,7 +133,7 @@ def i_LDI(i_, fmap):
 
 
 def i_LDIR(i_, fmap):
-    i_ldi(i_, fmap)
+    i_LDI(i_, fmap)
     fmap[pf] = bit0
     if fmap[bc] != bit0:
         fmap[pc] = fmap[pc] - i_.length
@@ -149,7 +152,7 @@ def i_LDD(i_, fmap):
 
 
 def i_LDDR(i_, fmap):
-    i_ldd(i_, fmap)
+    i_LDD(i_, fmap)
     fmap[pf] = bit0
     if fmap[bc] != bit0:
         fmap[pc] = fmap[pc] - i_.length
@@ -170,7 +173,7 @@ def i_CPI(i_, fmap):
 
 
 def i_CPIR(i_, fmap):
-    i_cpi(i_, fmap)
+    i_CPI(i_, fmap)
     if fmap[zf] != 0 or fmap[pf] != 0:
         fmap[pc] = fmap[pc] - i_.length
 
@@ -190,7 +193,7 @@ def i_CPD(i_, fmap):
 
 
 def i_CPDR(i_, fmap):
-    i_cpd(i_, fmap)
+    i_CPD(i_, fmap)
     if fmap[zf] != 0 or fmap[pf] != 0:
         fmap[pc] = fmap[pc] - i_.length
 
@@ -239,7 +242,8 @@ def i_SUB(i_, fmap):
 
 def i_SBC(i_, fmap):
     _c = fmap[cf]
-    i_add(i_, fmap)
+    dst, src = i_.operands
+    i_ADD(i_, fmap)
     _a = fmap(a)
     _x = _a - tst(_c, cst(1, _a.size), cst(0, _a.size))
     fmap[zf] = tst(_x == 0, bit1, bit0)

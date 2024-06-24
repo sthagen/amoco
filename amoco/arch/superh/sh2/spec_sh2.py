@@ -11,7 +11,15 @@
 
 from amoco.arch.superh.sh2 import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_other,
+)
+
+# ruff: noqa: F811
+
 
 # -------------------------------------------------------
 # sh-2 decoders
@@ -423,7 +431,6 @@ def sh2_branch(obj, d):
 @ispec("16<[ 1010 d(12) ]", mnemonic="BRA")
 @ispec("16<[ 1011 d(12) ]", mnemonic="BSR")
 def sh2_branch(obj, d):
-    R0 = env.R[0]
     offset = env.cst(d, 12).signextend(32)
     obj.operands = [offset * 2]
     obj.misc["delayed"] = True
@@ -522,7 +529,6 @@ def sh2_default(obj, m, _op2):
 
 @ispec("16<[ 0100 n(4) 11100101 ]", mnemonic="STBANK")
 def sh2_default(obj, n):
-    Rn = env.R[n]
     obj.operands = [env.R[0], env.mem(n, 32)]
     obj.type = type_other
 

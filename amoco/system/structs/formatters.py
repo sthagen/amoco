@@ -4,17 +4,17 @@
 # Copyright (C) 2016 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-import struct
-import pyparsing as pp
 from collections import defaultdict
 
 from amoco.logger import Log
+
 logger = Log(__name__)
 logger.debug("loading module")
 
 from .core import StructCore
 
-from amoco.ui.render import Token, highlight
+from amoco.ui.render import Token, TokenListJoin, vltable
+from amoco.ui.views import StructView
 from inspect import stack as _stack
 
 
@@ -72,7 +72,7 @@ class Consts(object):
     def __enter__(self):
         where = _stack()[1][0].f_globals
         self.globnames = set(where.keys())
-        if not self.name in self.All:
+        if self.name not in self.All:
             self.All[self.name] = {}
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -89,7 +89,7 @@ def default_formatter():
     return token_default_fmt
 
 
-def token_default_fmt(k, x, cls=None, fmt=None):
+def token_default_fmt(k, x, cls=None):
     """The default formatter just prints value 'x' of attribute 'k'
     as a literal token python string
     """
@@ -97,36 +97,39 @@ def token_default_fmt(k, x, cls=None, fmt=None):
         s = x.pp__()
     except AttributeError:
         s = str(x)
-    return highlight([(Token.Literal, s)],fmt)
+    return [(Token.Literal, s)]
 
 
-def token_address_fmt(k, x, cls=None, fmt=None):
+def token_address_fmt(k, x, cls=None):
     """The address formatter prints value 'x' of attribute 'k'
     as a address token hexadecimal value
     """
-    return highlight([(Token.Address, hex(x))],fmt)
+    return [(Token.Address, hex(x))]
 
-def token_version_fmt(k, x, cls=None, fmt=None):
+
+def token_version_fmt(k, x, cls=None):
     """The address formatter prints value 'x' of attribute 'k'
     as an hexadecimal string token value
     """
     l = []
     while x:
-        l.append("%d"%(x&0xff))
-        x = x>>8
-    return highlight([(Token.String, '.'.join(l))],fmt)
+        l.append("%d" % (x & 0xFF))
+        x = x >> 8
+    return [(Token.String, ".".join(l))]
 
-def token_bytes_fmt(k, x, cls=None, fmt=None):
+
+def token_bytes_fmt(k, x, cls=None):
     """The address formatter prints value 'x' of attribute 'k'
     as an hexadecimal string token value
     """
     l = []
     while x:
-        l.append("%02X"%(x&0xff))
-        x = x>>8
-    return highlight([(Token.String, ' '.join(l))],fmt)
+        l.append("%02X" % (x & 0xFF))
+        x = x >> 8
+    return [(Token.String, " ".join(l))]
 
-def token_constant_fmt(k, x, cls=None, fmt=None):
+
+def token_constant_fmt(k, x, cls=None):
     """The constant formatter prints value 'x' of attribute 'k'
     as a constant token decimal value
     """
@@ -134,60 +137,59 @@ def token_constant_fmt(k, x, cls=None, fmt=None):
         s = x.pp__()
     except AttributeError:
         s = str(x)
-    return highlight([(Token.Constant, s)],fmt)
+    return [(Token.Constant, s)]
 
 
-def token_mask_fmt(k, x, cls=None, fmt=None):
+def token_mask_fmt(k, x, cls=None):
     """The mask formatter prints value 'x' of attribute 'k'
     as a constant token hexadecimal value
     """
-    return highlight([(Token.Constant, hex(x))],fmt)
+    return [(Token.Constant, hex(x))]
 
 
-def token_name_fmt(k, x, cls=None, fmt=None):
+def token_name_fmt(k, x, cls=None):
     """The name formatter prints value 'x' of attribute 'k'
     as a name token variable symbol matching the value
     """
-    pfx = "%s." % cls if cls != None else ""
+    pfx = "%s." % cls if cls is not None else ""
     if pfx + k in Consts.All:
         k = pfx + k
     ks = k
     try:
-        return highlight([(Token.Name, Consts.All[ks][x]),
-                          (Token.Literal, " (%s)"%x)],fmt)
+        return [(Token.Constant, hex(x)), (Token.Comment, "#%s" % Consts.All[ks][x])]
     except KeyError:
-        return token_constant_fmt(k, x, cls, fmt)
+        return token_constant_fmt(k, x, cls)
 
 
-def token_flag_fmt(k, x, cls, fmt=None):
+def token_flag_fmt(k, x, cls=None):
     """The flag formatter prints value 'x' of attribute 'k'
     as a name token variable series of symbols matching
     the flag value
     """
     s = []
-    pfx = "%s." % cls if cls != None else ""
+    pfx = "%s." % cls if cls is not None else ""
     if pfx + k in Consts.All:
         k = pfx + k
     ks = k
     for v, name in Consts.All[ks].items():
         if x & v:
-            s.append(highlight([(Token.Name, name)],fmt))
-    return ",".join(s) if len(s) > 0 else token_mask_fmt(k, x, cls, fmt)
+            s.append((Token.Name, name))
+    return TokenListJoin(",", s) if len(s) > 0 else token_mask_fmt(k, x, cls)
 
 
-def token_datetime_fmt(k, x, cls=None, fmt=None):
+def token_datetime_fmt(k, x, cls=None):
     """The date formatter prints value 'x' of attribute 'k'
     as a date token UTC datetime string from timestamp value
     """
     from datetime import datetime
 
-    return highlight([(Token.Date, str(datetime.utcfromtimestamp(x)))],fmt)
+    return [(Token.Date, str(datetime.utcfromtimestamp(x)))]
 
 
 # ------------------------------------------------------------------------------
 
 
-class StructFormatter(StructCore):
+class StructFormatter(StructCore, StructView):
     """
     StructFormatter is the Parent Class for all user-defined structures.
     For most of these structures, the fields are created using a StructDefine
@@ -225,38 +227,24 @@ class StructFormatter(StructCore):
         for key in keys:
             cls.fkeys[key] = token_flag_fmt
 
-    def strkey(self, k, cname, ksz=20, formatter=None):
-        fmt = "%%s%%-%ds:%%s" % ksz
+    def fmtkey(self, k):
+        t = vltable()
+        alt = self.alt or self.__class__.__name__
         if hasattr(self._v, k):
             val = getattr(self._v, k)
-            if isinstance(val,StructFormatter):
-                val = val.pp__(formatter)
-            elif isinstance(val,list):
-                val = "\n".join((e.pp__(formatter) for e in val))
-            result = self.fkeys[k](k, val, cls=cname,fmt=formatter)
+        elif hasattr(self, k):
+            val = getattr(self, k)
         else:
-            result = "None"
-        return fmt % (self.pfx, k, result)
-
-    def pp__(self,fmt=None):
-        cname = self.alt or self.__class__.__name__
-        ksz = max((len(f.name) for f in self.fields))
-        s = []
-        for f in self.fields:
-            if f.name and f.name!='_':
-                fs = self.strkey(f.name, cname, ksz, fmt)
-                if fs.count("\n") > 0:
-                    fs = fs.replace("\n", "\n " + " " * ksz)
-            elif hasattr(f,'subnames'):
-                subn = filter(lambda n:n!='_', f.subnames)
-                fs = "\n".join((self.strkey(n,cname,ksz,fmt) for n in subn))
+            t.addrow([(Token.Literal, "None")])
+            return t
+        if not isinstance(val, list):
+            L = [val]
+        else:
+            L = val
+        for val in L:
+            if isinstance(val, StructFormatter):
+                tv = val._vltable()
+                t.rows.extend(tv.rows)
             else:
-                continue
-            s.append(fs)
-        s = "\n".join(s)
-        return "[%s]\n%s" % (self.__class__.__name__, s)
-
-    def __str__(self):
-        return self.pp__()
-
-
+                t.addrow(self.fkeys[k](k, val, cls=alt))
+        return t

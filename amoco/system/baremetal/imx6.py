@@ -1,5 +1,6 @@
-from amoco.system.structs import struct, Consts, StructFormatter, StructDefine
-from amoco.arch.arm import cpu_armv7
+from amoco.system.structs import struct, Consts, StructFormatter, StructDefine, RawField
+from amoco.ui.render import Token
+from amoco.arch.arm.cpu_armv7 import cpu
 from amoco.system.core import DataIO
 from amoco.system.raw import RawExec
 
@@ -101,8 +102,8 @@ class HAB_Header(StructFormatter):
             self.unpack(data, offset)
 
     @staticmethod
-    def token_ver_format(k, x, cls=None, fmt=None):
-        return highlight([(Token.Literal, "%d.%d" % (x >> 4, x & 0xF))],fmt)
+    def token_ver_format(k, x, cls=None):
+        return [(Token.Literal, "%d.%d" % (x >> 4, x & 0xF))]
 
 
 # ------------------------------------------------------------------------------
@@ -212,7 +213,7 @@ class CRT(StructFormatter):
         offset += self.size()
         crt = data[offset:crtend]
         if crt[0] == HAB_KEY_PUBLIC:
-            while offset < csfend:
+            while offset < crtend:
                 k = PublicKey(data, offset)
                 self.keys.append(k)
                 offset += k.size()
@@ -456,7 +457,7 @@ class Authenticate(StructFormatter):
             s.append((Token.Literal, ","))
             s.append(sz)
             s.append((Token.Literal, ")"))
-        return highlight(s)
+        return s
 
     def unpack(self, data, offset=0, psize=0):
         StructFormatter.unpack(self, data, offset)
@@ -496,7 +497,7 @@ class HABstub(RawExec):
         self.ivt = IVT(self.rom, offset=self.IVT_offset)
         assert self.ivt.self != 0
         ILR = DataIO(self.rom[0:4096])
-        RawExec.__init__(self, ILR, cpu=cpu_armv7)
+        RawExec.__init__(self, ILR, cpu=cpu)
         start = self.ivt.self - self.IVT_offset
         self.relocate(start)
         if self.ivt.boot_data:

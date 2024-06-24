@@ -6,7 +6,10 @@
 
 from amoco.arch.pic.F46K22 import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import type_data_processing, type_control_flow
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # instruction PIC18(L)F2X/4XK22 decoders

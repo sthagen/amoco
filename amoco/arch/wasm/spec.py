@@ -11,16 +11,19 @@ from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import type_data_processing, type_control_flow, pack
 from amoco.arch.wasm import env
 from amoco.system.utils import read_leb128, read_uleb128, read_sleb128
+
+# ruff: noqa: F811
 
 ISPECS = []
 
 
 @ispec("8>[ {00} ]", mnemonic="unreachable")
 @ispec("8>[ {01} ]", mnemonic="nop")
-@ispec("8>[ {d1} ]", mnemonic="ref",action="is_null")
+@ispec("8>[ {d1} ]", mnemonic="ref", action="is_null")
 @ispec("8>[ {1a} ]", mnemonic="drop")
 @ispec("8>[ {1b} ]", mnemonic="select")
 @ispec("8>[ {45} ]", mntype="i32", mnemonic="eqz")
@@ -155,6 +158,7 @@ def dw_op_0(obj):
     obj.operands = []
     obj.type = type_data_processing
 
+
 @ispec("8>[ {0b} ]", mnemonic="end")
 @ispec("8>[ {0f} ]", mnemonic="return")
 @ispec("8>[ {05} ]", mnemonic="else")
@@ -162,34 +166,38 @@ def dw_op_0(obj):
     obj.operands = []
     obj.type = type_control_flow
 
-@ispec("16>[ {d0} t(8) ]", mnemonic="ref",action="null")
-def dw_reftype(obj,t):
+
+@ispec("16>[ {d0} t(8) ]", mnemonic="ref", action="null")
+def dw_reftype(obj, t):
     if t in env.reftype:
         obj.operands = [env.reftype[t]]
     else:
         raise InstructionError(obj)
     obj.type = type_data_processing
 
-@ispec("16>[ {3f} {00} ]", mnemonic="memory",action="size")
-@ispec("16>[ {40} {00} ]", mnemonic="memory",action="grow")
+
+@ispec("16>[ {3f} {00} ]", mnemonic="memory", action="size")
+@ispec("16>[ {40} {00} ]", mnemonic="memory", action="grow")
 def dw_memory(obj):
     obj.operands = []
     obj.type = type_data_processing
 
-def xdata_select(obj,**kargs):
-    addr = kargs['address']
-    code = kargs['code']
+
+def xdata_select(obj, **kargs):
+    addr = kargs["address"]
+    code = kargs["code"]
     obj.t = []
-    addr = addr+len(obj.bytes)
+    addr = addr + len(obj.bytes)
     off = 0
     for l in range(obj.x):
-        n, sz = read_leb128(code,1,addr+off)
+        n, sz = read_leb128(code, 1, addr + off)
         obj.t.append(n)
         off += sz
     obj.operands[0] = obj.t
-    obj.bytes += code[addr:addr+off]
+    obj.bytes += code[addr : addr + off]
 
-@ispec("*>[ {d2} ~data(*) ]", mnemonic="ref",action="func")
+
+@ispec("*>[ {d2} ~data(*) ]", mnemonic="ref", action="func")
 @ispec("*>[ {1c} ~data(*) ] &", mnemonic="select")
 @ispec("*>[ {20} ~data(*) ]", mnemonic="local", action="get")
 @ispec("*>[ {21} ~data(*) ]", mnemonic="local", action="set")
@@ -200,12 +208,13 @@ def xdata_select(obj,**kargs):
 @ispec("*>[ {26} ~data(*) ]", mnemonic="table", action="set")
 def dw_uleb128(obj, data):
     data = pack(data)
-    obj.x,blen = read_uleb128(data)
+    obj.x, blen = read_uleb128(data)
     obj.bytes += data[0:blen]
     obj.operands = [obj.x]
     obj.type = type_data_processing
-    if obj.mnemonic=="select":
+    if obj.mnemonic == "select":
         obj.xdata = xdata_select
+
 
 @ispec("*>[ {41} ~data(*) ]", mnemonic="i32")
 @ispec("*>[ {42} ~data(*) ]", mnemonic="i64")
@@ -213,65 +222,67 @@ def dw_uleb128(obj, data):
 @ispec("*>[ {44} ~data(*) ]", mnemonic="f64")
 def dw_uleb128(obj, data):
     data = pack(data)
-    obj.n,blen = read_uleb128(data)
+    obj.n, blen = read_uleb128(data)
     obj.bytes += data[0:blen]
     obj.operands = [obj.n]
     obj.action = "const"
     obj.type = type_data_processing
 
+
 @ispec("*>[ {fc} ~data(*) ]", mnemonic="table")
 def dw_table(obj, data):
     data = pack(data)
-    v,blen = read_uleb128(data)
+    v, blen = read_uleb128(data)
     obj.bytes += data[0:blen]
     obj.type = type_data_processing
-    if v>17:
+    if v > 17:
         raise InstructionError(obj)
-    if v<8:
-        obj.mntype = "i32" if v<4 else "i64"
-        post = "f32" if v in (0,2,4,5) else "f64"
-        su = "_s" if v%2==0 else "_u"
-        obj.mnemonic = "trunc_sat_"+post+su
-    if v==10:
+    if v < 8:
+        obj.mntype = "i32" if v < 4 else "i64"
+        post = "f32" if v in (0, 2, 4, 5) else "f64"
+        su = "_s" if v % 2 == 0 else "_u"
+        obj.mnemonic = "trunc_sat_" + post + su
+    if v == 10:
         obj.mnemonic = "memory"
         obj.action = "copy"
-        if data[blen:blen+2]!=b'\x00\x00':
+        if data[blen : blen + 2] != b"\x00\x00":
             raise InstructionError(obj)
-        obj.bytes += data[blen:blen+2]
+        obj.bytes += data[blen : blen + 2]
         return
-    elif v==11:
+    elif v == 11:
         obj.mnemonic = "memory"
         obj.action = "fill"
-        if data[blen:blen+1]!=b'\x00':
+        if data[blen : blen + 1] != b"\x00":
             raise InstructionError(obj)
-        obj.bytes += data[blen:blen+1]
+        obj.bytes += data[blen : blen + 1]
         return
     data = data[blen:]
-    obj.x,blen1 = read_leb128(data,1,0)
+    obj.x, blen1 = read_leb128(data, 1, 0)
     obj.bytes += data[0:blen1]
-    if v==8:
+    if v == 8:
         obj.mnemonic = "memory"
         obj.action = "init"
-        if data[blen1:blen1+1]!=b'\x00':
+        if data[blen1 : blen1 + 1] != b"\x00":
             raise InstructionError(obj)
-        obj.bytes += data[blen1:blen1+1]
-    elif v==9:
+        obj.bytes += data[blen1 : blen1 + 1]
+    elif v == 9:
         obj.mnemonic = "data"
         obj.action = "drop"
-    elif v==12:
+    elif v == 12:
         obj.y = obj.x
-        obj.x,blen2 = read_leb128(data,1,blen1)
-        obj.bytes += data[blen1:blen1+blen2]
+        obj.x, blen2 = read_leb128(data, 1, blen1)
+        obj.bytes += data[blen1 : blen1 + blen2]
         obj.action = "init"
-    elif v==13:
+    elif v == 13:
         obj.mnemonic = "elem"
         obj.action = "drop"
-    elif v==14:
-        obj.y,blen2 = read_leb128(data,1,blen1)
-        obj.bytes += data[blen1:blen1+blen2]
+    elif v == 14:
+        obj.y, blen2 = read_leb128(data, 1, blen1)
+        obj.bytes += data[blen1 : blen1 + blen2]
         obj.action = "copy"
     else:
-        obj.action = {15:"grow",16:"size",17:"fill"}[v]
+        obj.action = {15: "grow", 16: "size", 17: "fill"}[v]
+
 
 @ispec("*>[ {02} ~data(*) ]", mnemonic="block")
 @ispec("*>[ {03} ~data(*) ]", mnemonic="loop")
@@ -286,58 +297,63 @@ def dw_op_block(obj, data):
         obj.bt = env.valtype[bt]
         obj.bytes += data[0:1]
     else:
-        obj.bt,blen = read_sleb128(data)
+        obj.bt, blen = read_sleb128(data)
         obj.bytes += data[0:blen]
     obj.operands = [obj.bt]
     obj.type = type_control_flow
 
-def xdata_br_table(obj,**kargs):
-    addr = kargs['address']
-    code = kargs['code']
+
+def xdata_br_table(obj, **kargs):
+    addr = kargs["address"]
+    code = kargs["code"]
     obj.labels = []
     addr += len(obj.bytes)
     off = 0
     for l in range(obj.l):
-        n, sz = read_leb128(code,1,addr+off)
+        n, sz = read_leb128(code, 1, addr + off)
         obj.labels.append(n)
         off += sz
-    n, sz = read_leb128(code,1,addr+off)
+    n, sz = read_leb128(code, 1, addr + off)
     obj.default = n
     off += sz
-    obj.bytes += code[addr:addr+off]
+    obj.bytes += code[addr : addr + off]
+
 
 @ispec("*>[ {0c} ~data(*) ]", mnemonic="br")
 @ispec("*>[ {0d} ~data(*) ]", mnemonic="br_if")
 @ispec("*>[ {0e} ~data(*) ] &", mnemonic="br_table")
 def dw_op_br(obj, data):
     data = pack(data)
-    obj.l,blen = read_uleb128(data)
+    obj.l, blen = read_uleb128(data)
     obj.bytes += data[0:blen]
     obj.operands = [obj.l]
     obj.type = type_control_flow
-    if obj.mnemonic=="br_table":
+    if obj.mnemonic == "br_table":
         obj.xdata = xdata_br_table
 
-def xdata_call_indirect(obj,**kargs):
-    addr = kargs['address']
-    code = kargs['code']
+
+def xdata_call_indirect(obj, **kargs):
+    addr = kargs["address"]
+    code = kargs["code"]
     off = 0
-    n, sz = read_leb128(code,1,addr+off)
+    n, sz = read_leb128(code, 1, addr + off)
     obj.y = n
     obj.operands.append(obj.y)
     off += sz
-    obj.bytes += code[addr:addr+off]
+    obj.bytes += code[addr : addr + off]
+
 
 @ispec("*>[ {10} ~data(*) ]", mnemonic="call")
 @ispec("*>[ {11} ~data(*) ] &", mnemonic="call_indirect")
 def dw_op_call(obj, data):
     data = pack(data)
-    obj.x,blen = read_uleb128(data)
+    obj.x, blen = read_uleb128(data)
     obj.bytes += data[0:blen]
     obj.operands = [obj.x]
     obj.type = type_control_flow
-    if obj.mnemonic=="call_indirect":
+    if obj.mnemonic == "call_indirect":
         obj.xdata = xdata_call_indirect
+
 
 @ispec("*>[ {28} ~data(*) ]", mnemonic="i32", action="load")
 @ispec("*>[ {29} ~data(*) ]", mnemonic="i64", action="load")
@@ -364,8 +380,8 @@ def dw_op_call(obj, data):
 @ispec("*>[ {3e} ~data(*) ]", mnemonic="i64", action="store32")
 def dw_memarg(obj, data):
     data = pack(data)
-    obj.a,blen1 = read_leb128(data,1,0)
-    obj.bytes += data[0:blen]
-    obj.o,blen2 = read_leb128(data,1,blen1)
-    obj.bytes += data[blen:blen1+blen2]
+    obj.a, blen1 = read_leb128(data, 1, 0)
+    obj.bytes += data[0:blen1]
+    obj.o, blen2 = read_leb128(data, 1, blen1)
+    obj.bytes += data[blen1 : blen1 + blen2]
     obj.type = type_data_processing

@@ -4,10 +4,12 @@
 # Copyright (C) 2006-2011 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.elf import *
+from amoco.cas.expressions import top
+from amoco.system import elf
+from amoco.system.structs import Consts
 from amoco.system.core import CoreExec, DefineStub
-from amoco.code import tag
-import amoco.arch.x64.cpu_x64 as cpu
+from amoco.arch.x64.cpu_x64 import cpu
+from amoco.code import callstack
 
 # AMD 64 specific definitions. #x86_64 relocs.
 with Consts("r_type"):
@@ -76,7 +78,9 @@ class OS(object):
         self.ASLR = conf.aslr
         self.NX = conf.nx
         self.tasks = []
-        self.abi = None
+        from . import abi
+
+        self.abi = abi
         self.symbols = {}
 
     @classmethod
@@ -89,14 +93,14 @@ class OS(object):
         p.OS = self
         # create text and data segments according to elf header:
         for s in bprm.Phdr:
-            if s.p_type == PT_INTERP:
+            if s.p_type == elf.PT_INTERP:
                 interp = bprm.readsegment(s).strip(b"\0")
-            elif s.p_type == PT_LOAD:
+            elif s.p_type == elf.PT_LOAD:
                 ms = bprm.loadsegment(s, self.PAGESIZE)
-                if ms != None:
+                if ms is not None:
                     vaddr, data = ms.popitem()
                     p.state.mmap.write(vaddr, data)
-            elif s.p_type == PT_GNU_STACK:
+            elif s.p_type == elf.PT_GNU_STACK:
                 # executable_stack = s.p_flags & PF_X
                 pass
         # init task state:
@@ -141,26 +145,26 @@ class OS(object):
         # to improve asm block views:
         plt = got = None
         for s in p.bin.Shdr:
-            if s.name=='.plt':
+            if s.name == ".plt":
                 plt = s
-            elif s.name=='.got':
+            elif s.name == ".got":
                 got = s
         if plt and got:
             address = plt.sh_addr
             pltco = p.bin.readsection(plt)
-            while(pltco):
+            while pltco:
                 i = p.cpu.disassemble(pltco)
-                if i.mnemonic=='JMP' and i.operands[0]._is_mem:
+                if i.mnemonic == "JMP" and i.operands[0]._is_mem:
                     target = i.operands[0].a
                     if target.base is p.cpu.rip:
-                        target = address+target.disp
+                        target = address + target.disp
                     elif target.base._is_reg:
-                        target = got.sh_addr+target.disp
+                        target = got.sh_addr + target.disp
                     elif target.base._is_cst:
-                        target = target.base.value+target.disp
+                        target = target.base.value + target.disp
                     if target in p.bin.functions:
                         p.bin.functions[address] = p.bin.functions[target]
-                pltco = pltco[i.length:]
+                pltco = pltco[i.length :]
                 address += i.length
 
     def stub(self, refname):
@@ -168,7 +172,32 @@ class OS(object):
 
 
 class Task(CoreExec):
-    pass
+    def symbol_for(self, address):
+        return super().symbol_for(address, abi=self.OS.abi)
+
+    def helper_callstack(self, stk, i):
+        if stk is None:
+            stk = callstack(
+                entry=i.address,
+                symbol=self.symbol_for(i.address),
+                caller="<empty>",
+                sp=self.state(cpu.rsp),
+            )
+        cur = stk.cursor()
+        if i.mnemonic.lower() in ("call", "jmpf", "callf"):
+            addr = self.state(cpu.rip)
+            symb = self.symbol_for(addr)
+            cur.append(
+                callstack(
+                    entry=addr, symbol=symb, caller=i.address, sp=self.state(cpu.rsp)
+                )
+            )
+        elif i.mnemonic.lower() in ("ret", "retf"):
+            cur.closed = True
+            par = stk.cursor()
+            if [(e.entry, e.caller) for e in par].count((cur.entry, cur.caller)) > 1:
+                par.pop()
+        return stk
 
 
 # ----------------------------------------------------------------------------
@@ -183,7 +212,9 @@ def pop_rip(m, **kargs):
 def libc_start_main(m, **kargs):
     "tags: func_call"
     m[cpu.rip] = m(cpu.rdi)
-    cpu.push(m, cpu.ext("exit", size=64))
+    x = cpu.ext("exit", size=64)
+    x.stub = libc_exit
+    cpu.push(m, x)
 
 
 @DefineStub(OS, "exit")

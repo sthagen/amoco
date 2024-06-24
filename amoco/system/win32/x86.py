@@ -4,10 +4,9 @@
 # Copyright (C) 2006-2019 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.pe import *
 from amoco.system.core import CoreExec, DefineStub
-from amoco.code import tag
-import amoco.arch.x86.cpu_x86 as cpu
+from amoco.code import callstack
+from amoco.arch.x86.cpu_x86 import cpu
 
 # ------------------------------------------------------------------------------
 
@@ -44,10 +43,14 @@ class OS(object):
         "load the program into virtual memory (populate the mmap dict)"
         p = Task(pe, cpu)
         p.OS = self
+        # map PE header at ImageBase:
+        vaddr = pe.Opt.ImageBase
+        p.state.mmap.write(vaddr, b"\0" * pe.Opt.SizeOfImage)
+        p.state.mmap.write(vaddr, pe.dataio[0 : pe.Opt.SizeOfHeaders])
         # create text and data segments according to elf header:
         for s in pe.sections:
             ms = pe.loadsegment(s, pe.Opt.SectionAlignment)
-            if ms != None:
+            if ms is not None:
                 vaddr, data = ms.popitem()
                 p.state.mmap.write(vaddr, data)
         # init task state:
@@ -83,12 +86,38 @@ class OS(object):
     def stub(self, refname):
         return self.stubs.get(refname, self.default_stub)
 
+
 # ------------------------------------------------------------------------------
 
+
 class Task(CoreExec):
-    pass
+    def helper_callstack(self, stk, i):
+        if stk is None:
+            stk = callstack(
+                entry=i.address,
+                symbol=self.symbol_for(i.address),
+                caller="<empty>",
+                sp=self.state(cpu.esp),
+            )
+        cur = stk.cursor()
+        if i.mnemonic.lower() in ("call", "jmpf", "callf"):
+            addr = self.state(cpu.eip)
+            symb = self.symbol_for(addr)
+            cur.append(
+                callstack(
+                    entry=addr, symbol=symb, caller=i.address, sp=self.state(cpu.esp)
+                )
+            )
+        elif i.mnemonic.lower() in ("ret", "retf"):
+            cur.closed = True
+            par = stk.cursor()
+            if [(e.entry, e.caller) for e in par].count((cur.entry, cur.caller)) > 1:
+                par.pop()
+        return stk
+
 
 # ----------------------------------------------------------------------------
+
 
 @DefineStub(OS, "*", default=True)
 def pop_eip(m, **kargs):
@@ -98,5 +127,6 @@ def pop_eip(m, **kargs):
 @DefineStub(OS, "KERNEL32.dll::ExitProcess")
 def ExitProcess(m, **kargs):
     m[cpu.eip] = cpu.top(32)
+
 
 # ----------------------------------------------------------------------------

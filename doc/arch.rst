@@ -37,7 +37,9 @@ The cpu environment
 It all starts with the definition of the cpu *environment* in a dedicated module.
 This module defines registers as instances of :class:`cas.expressions.reg`,
 and associated register slices with :class:`cas.expressions.slc` if necessary.
-For example, x86 register ``eax`` and its slices are defined in :mod:`arch.x86.env` as::
+For example, x86 register ``eax`` and its slices are defined in :mod:`arch.x86.env` as:
+
+.. code-block:: python
 
   eax = reg("eax",32)
   ax  = slc(eax, 0, 16, "ax")
@@ -47,11 +49,15 @@ For example, x86 register ``eax`` and its slices are defined in :mod:`arch.x86.e
 In order to improve code analysis and views,
 some registers should be bound to their special :class:`cas.expressions.regtype`,
 using one of the dedicated callable or context manager.
-For example, the stack pointer should be bound to regtype ``'STACK'`` using::
+For example, the stack pointer should be bound to regtype ``'STACK'`` using:
+
+.. code-block:: python
 
   esp = is_reg_stack(reg('esp',32))
 
-or alternatively using a context manager::
+or alternatively using a context manager:
+
+.. code-block:: python
 
   with is_reg_stack:
       esp = reg('esp',32)
@@ -86,7 +92,9 @@ a way that allows the decorated function to setup instruction's operands and
 any other characteristics from the decoded values. This description allows
 to follow CPU datasheet's instructions manual very closely. Moreover, thanks
 to how decorator work, several specs can share the same setup function.
-For example, we have in the MIPS R3000 instructions' spec module::
+For example, we have in the MIPS R3000 instructions' spec module:
+
+.. code-block:: python
 
   @ispec("32<[ 001100 rs(5) rt(5) imm(16) ]", mnemonic="ANDI")
   @ispec("32<[ 001101 rs(5) rt(5) imm(16) ]", mnemonic="ORI")
@@ -116,12 +124,16 @@ The cpu disassembler
 
 When the specification module is done, the cpu disassembler can be instanciated.
 First a new local instruction class should be derived from the generic
-:class:`arch.core.instruction` with::
+:class:`arch.core.instruction` with:
+
+.. code-block:: python
 
   from amoco.arch.core import instruction
   instruction_X = type("instruction_X", (instruction,), {})
 
-Then, a disassembler instance is obtained with::
+Then, a disassembler instance is obtained with:
+
+.. code-block:: python
 
   from amoco.arch.core import disassembler
   from amoco.arch.X import spec_X, spec_thumb
@@ -133,7 +145,9 @@ an alternate mode like Thumb (see class definition ``mode`` argument.)
 The second is our new instruction class.
 By default, disassemblers will fetch instructions in little-endian, but the
 ``endian`` parameter allows to fetch in big-endian. For example the ARMv7
-architecture's disassembler is::
+architecture's disassembler is:
+
+.. code-block:: python
 
   mode = lambda: internals["isetstate"]
   endian = lambda: 1 if internals["ibigend"] == 0 else -1
@@ -153,7 +167,9 @@ An instruction's semantics is a function associated to the instruction's
 mnemonic which operates on a :class:`cas.mapper.mapper` object.
 The function's name should be "i_XXX" for mnemonic "XXX".
 The mapper argument enables transitions from a state to another state.
-For example, the semantics of all MIPS R3000 ``AND`` instructions is::
+For example, the semantics of all MIPS R3000 ``AND`` instructions is:
+
+.. code-block:: python
 
   @__npc
   def i_AND(ins, fmap):
@@ -172,7 +188,9 @@ of the :class:`cas.expressions.op` formed by ``src1 & src2``.
 Of course, since we want *symbolic* semantics these functions might
 end-up being quite complex especially for conditional stuff.
 For example, like in the case of this weird
-*unaligned load word* MIPS R3000 instruction::
+*unaligned load word* MIPS R3000 instruction:
+
+.. code-block:: python
 
   @__npc
   def i_LWL(ins, fmap):
@@ -301,7 +319,7 @@ explict delayed updates.
 every instructions, as if the result of the delayed load was forwarded
 to the current ALU stage.)
 
-.. [#]: "Microprocessor without Interlocked Pipeline Stages" 
+.. [#]: "Microprocessor without Interlocked Pipeline Stages"
 
 Instructions format
 ~~~~~~~~~~~~~~~~~~~
@@ -313,17 +331,19 @@ Available formatters for a CPU ISA are instances of the
 :class:`arch.core.Formatter` class. These formatters are initiated from
 a dict object that maps instructions' mnemonic or setup function name
 to iterable formatting functions operating on the instruction object.
-For example::
+For example:
+
+.. code-block:: python
 
   format_default = (mnemo, opers)
-  
+
   MIPS_full_formats = {
       "mips1_loadstore": (mnemo, opers_mem),
       "mips1_jump_abs": (mnemo, opers),
       "mips1_jump_rel": (mnemo, opers_rel),
       "mips1_branch": (mnemo, opers_adr),
   }
-  
+
   MIPS_full = Formatter(MIPS_full_formats)
   MIPS_full.default = format_default
 
@@ -348,13 +368,17 @@ its disassembler as shown above.
 The semantics is associated to the instruction class with the
 :func:`arch.core.instruction.set_uarch(dict)` which takes a mapping
 from mnemonics to the corresponding instruction semantics function.
-Thus, in most cpu modules this binding is done with::
+Thus, in most cpu modules this binding is done with:
+
+.. code-block:: python
 
   from .asm import *
   uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
   instruction_X.set_uarch(uarch)
 
-The chosen formatter is bound to the instruction class with::
+The chosen formatter is bound to the instruction class with:
+
+.. code-block:: python
 
   from .formats import X_full
   instruction_X.set_formatter(X_full)
@@ -363,7 +387,9 @@ The chosen formatter is bound to the instruction class with::
 the :func:`PC()` function is defined to return the instruction's pointer.)
 
 Note that whenever a disassembler is available, the entire
-architecture ISA decision tree can be displayed with::
+architecture ISA decision tree can be displayed with:
+
+.. code-block:: python
 
   >>> from amoco.ui.views import archView
   >>> from amoco.arch.mips.cpu_r3000LE import disassemble

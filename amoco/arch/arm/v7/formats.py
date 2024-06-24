@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
-from .utils import *
+from amoco.cas.expressions import exp
 from amoco.arch.core import Formatter
-
 from amoco.ui.render import Token, TokenListJoin
+
+from .env import pc, apsr, CONDITION_AL, CONDITION, internals
 
 
 def mnemo(i):
@@ -17,7 +17,7 @@ def mnemo(i):
 
 
 def regs(i, limit=None):
-    ops = list(filter(lambda x: isinstance(x,exp),i.operands))
+    ops = list(filter(lambda x: isinstance(x, exp), i.operands))
     if limit:
         ops = ops[:limit]
     return [(Token.Register, "{0}".format(r)) for r in ops]

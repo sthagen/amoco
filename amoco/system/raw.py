@@ -28,32 +28,32 @@ class RawExec(CoreExec):
         if self.cpu is None:
             logger.warning("a cpu module must be imported")
         else:
-            pc = self.cpu.PC()
+            pc = self.cpu.getPC()
             entry = 0
             if hasattr(p, "entrypoint"):
                 entry = p.entrypoint
             self.state[pc] = self.cpu.cst(entry, pc.size)
 
     def use_x86(self):
-        from amoco.arch.x86 import cpu_x86
+        from amoco.arch.x86.cpu_x86 import cpu
 
-        self.cpu = cpu_x86
-        self.state[cpu_x86.eip] = cpu_x86.cst(0, 32)
+        self.cpu = cpu
+        self.state[cpu.eip] = cpu.cst(0, 32)
 
     def use_x64(self):
-        from amoco.arch.x64 import cpu_x64
+        from amoco.arch.x64.cpu_x64 import cpu
 
-        self.cpu = cpu_x64
-        self.state[cpu_x64.rip] = cpu_x64.cst(0, 64)
+        self.cpu = cpu
+        self.state[cpu.rip] = cpu.cst(0, 64)
 
     def use_arm(self):
-        from amoco.arch.arm import cpu_armv7
+        from amoco.arch.arm.cpu_armv7 import cpu
 
-        self.cpu = cpu_armv7
-        self.state[cpu_armv7.pc_] = cpu_armv7.cst(0, 32)
+        self.cpu = cpu
+        self.state[cpu.pc_] = cpu.cst(0, 32)
 
     def use_avr(self):
-        from amoco.arch.avr import cpu
+        from amoco.arch.avr.cpu import cpu
 
         self.cpu = cpu
         self.state[cpu.pc] = cpu.cst(0, 16)

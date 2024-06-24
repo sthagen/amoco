@@ -5,7 +5,7 @@
 # published under GPLv2 license
 
 from amoco.system.core import CoreExec
-import amoco.arch.sparc.cpu_v8 as cpu
+from amoco.arch.sparc.cpu_v8 import cpu
 
 PAGESIZE = 4096
 
@@ -18,11 +18,11 @@ class ELF(CoreExec):
     # load the program into virtual memory (populate the mmap dict)
     def load_binary(self):
         p = self.bin
-        if p != None:
+        if p is not None:
             # create text and data segments according to elf header:
             for s in p.Phdr:
                 ms = p.loadsegment(s, PAGESIZE)
-                if ms != None:
+                if ms is not None:
                     vaddr, data = list(ms.items())[0]
                     self.state.mmap.write(vaddr, data)
         # create the stack zone:

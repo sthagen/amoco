@@ -4,10 +4,9 @@
 # Copyright (C) 2017 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
-from ..utils import *
+from .env import sp, pc, cst, tst, zero, mem, oper
+from .env import internals, OP_LTU, OP_GEU, OP_ASR
 
-from amoco.cas.utils import *
 
 # ------------------------------------------------------------------------------
 # helpers and decorators :
@@ -30,7 +29,7 @@ def __npc(i_xxx):
 
 
 def trap(ins, fmap, trapname):
-    fmap.internals["trap"] = trapname
+    internals["trap"] = trapname
 
 
 # i_xxx is the translation of RISC-V instruction xxx.
@@ -295,42 +294,6 @@ def i_BGE(ins, fmap):
 def i_BGEU(ins, fmap):
     r1, r2, imm = ins.operands
     fmap[pc] = fmap(tst(oper(OP_GEU, r1, r2), pc + imm, pc + ins.length))
-
-
-@__npc
-def i_SB(ins, fmap):
-    dst, src = ins.operands
-    fmap[dst] = fmap(src[0:8])
-
-
-@__npc
-def i_SH(ins, fmap):
-    dst, src = ins.operands
-    fmap[dst] = fmap(src[0:16])
-
-
-@__npc
-def i_SW(ins, fmap):
-    dst, src = ins.operands
-    fmap[dst] = fmap(src)
-
-
-@__npc
-def i_LB(ins, fmap):
-    dst, src = ins.operands
-    fmap[dst] = fmap(src).signextend(32)
-
-
-i_LH = i_LW = i_LB
-
-
-@__npc
-def i_LBU(ins, fmap):
-    dst, src = ins.operands
-    fmap[dst] = fmap(src).zeroextend(32)
-
-
-i_LHU = i_LBU
 
 
 @__npc

@@ -4,9 +4,10 @@
 # Copyright (C) 2006-2011 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.elf import *
+from amoco.system import elf
+from amoco.system.structs import Consts
 from amoco.system.core import CoreExec
-import amoco.arch.superh.cpu_sh2 as cpu
+from amoco.arch.superh.cpu_sh2 import cpu
 
 with Consts("e_flags"):
     EF_SH2E = 0xB
@@ -108,14 +109,14 @@ class OS(object):
         self.tasks.append(p)
         # create text and data segments according to elf header:
         for s in bprm.Phdr:
-            if s.p_type == PT_INTERP:
+            if s.p_type == elf.PT_INTERP:
                 interp = bprm.readsegment(s).strip(b"\0")
-            elif s.p_type == PT_LOAD:
+            elif s.p_type == elf.PT_LOAD:
                 ms = bprm.loadsegment(s, self.PAGESIZE)
-                if ms != None:
+                if ms is not None:
                     vaddr, data = ms.popitem()
                     p.mmap.write(vaddr, data)
-            elif s.p_type == PT_GNU_STACK:
+            elif s.p_type == elf.PT_GNU_STACK:
                 # executable_stack = s.p_flags & PF_X
                 pass
         # init task state:
@@ -143,7 +144,7 @@ class OS(object):
             xf = cpu.ext(f, size=32)
             xf.stub = p.OS.stub(f)
             p.mmap.write(k, xf)
-        #TODO: update plt info
+        # TODO: update plt info
 
     def stub(self, refname):
         return self.stubs.get(refname, self.default_stub)

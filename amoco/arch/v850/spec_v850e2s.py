@@ -11,8 +11,15 @@ from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_system,
+)
 from amoco.arch.v850 import env
+
+# ruff: noqa: F811
 
 ISPECS = []
 
@@ -241,7 +248,7 @@ def v850_ld_st(obj, d, reg2, b, reg1, _size):
 @ispec("32<[ ~disp(16) 11 ~bnum(3) 111110 reg1(5) ]", mnemonic="TST1")
 def v850_bitwise(obj, disp, bnum, reg1):
     src = env.mem(env.R[reg1], 8, disp=disp.int(-1))
-    obj.operands = [cst(bnum.int(), 3), src]
+    obj.operands = [env.cst(bnum.int(), 3), src]
     obj.type = type_data_processing
 
 
@@ -328,8 +335,8 @@ def v850_ext3(obj, reg3, reg2, reg1):
 @ispec("32<[ reg4(4) 0011111 reg3(4) 0 reg2(5) 111111 reg1(5) ]", mnemonic="MACU")
 def v850_mac(obj, reg4, reg3, reg2, reg1):
     dst, src3, src2, src1 = env.R[reg4 << 1], env.R[reg3 << 1], env.R[reg2], env.R[reg1]
-    i.misc["reg4"] = reg4 << 1
-    i.misc["reg3"] = reg3 << 1
+    obj.misc["reg4"] = reg4 << 1
+    obj.misc["reg3"] = reg3 << 1
     obj.operands = [src1, src2, src3, dst]
     obj.type = type_data_processing
 
@@ -433,6 +440,8 @@ def v850_prepare(obj, imm32, lh, ff, imm, lo):
         op3 = env.cst((imm & 0xFFFF) << 16, 32)
     elif ff == 0b11:
         op3 = env.cst(imm, 32)
+    else:
+        raise ValueError(ff)
     obj.operands = [L, env.cst(imm, 5), op3]
     obj.type = type_data_processing
 

@@ -5,7 +5,7 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, cst, is_reg_pc, is_reg_stack
 
 # reference documentations:
 # The RISC-V Instruction Set Manual, volume I, Unpriviledged ISA, version 20190608.
@@ -80,4 +80,6 @@ pc = reg("pc", 64)
 is_reg_pc(pc)
 is_reg_stack(sp)
 
-registers = x+[pc]
+registers = x + [pc]
+
+internals = {}

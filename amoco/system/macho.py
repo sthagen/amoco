@@ -16,7 +16,9 @@ from amoco.system.core import BinFormat, DataIO
 from amoco.system.structs.utils import read_uleb128
 from amoco.system.structs import Consts, StructFormatter, default_formatter
 from amoco.system.structs import StructDefine, UnionDefine, StructureError
-from amoco.system.structs import token_name_fmt, token_flag_fmt, Token, highlight
+from amoco.system.structs import token_name_fmt, token_flag_fmt
+from amoco.system.structs.utils import read_sleb128
+from amoco.ui.render import Token, TokenListJoin
 
 
 from amoco.logger import Log
@@ -25,11 +27,12 @@ logger = Log(__name__)
 logger.debug("loading module")
 
 
-class MachOError(Exception):
+class MachOError(StructureError):
     """
     MachOError is raised whenever MachO object instance fails
     to decode required structures.
     """
+
     def __init__(self, message):
         self.message = message
 
@@ -38,6 +41,7 @@ class MachOError(Exception):
 
 
 # ------------------------------------------------------------------------------
+
 
 class MachO(BinFormat):
     """
@@ -62,6 +66,7 @@ class MachO(BinFormat):
         la_symbol_ptr (dict): address to lazy symbol bindings
         nl_symbol_ptr (dict): address to non-lazy symbol bindings
     """
+
     is_MachO = True
 
     @property
@@ -73,7 +78,7 @@ class MachO(BinFormat):
                 try:
                     self.__entry = c.entrypoint
                 except AttributeError:
-                    pass
+                    logger.warning("no entrypoint found")
             if c.cmd == LC_MAIN:
                 base = self.basemap
                 # remplacement for thread commands
@@ -91,7 +96,7 @@ class MachO(BinFormat):
         self._is_fat = False
         try:
             self.header = struct_mach_header(f)
-        except:
+        except Exception:
             raise MachOError("not a Mach-O header")
         if self.header.magic == MH_MAGIC_64:
             self.header = struct_mach_header_64(f)
@@ -148,7 +153,7 @@ class MachO(BinFormat):
             if cmd.cmd in CMD_TABLE:
                 try:
                     cmd = CMD_TABLE[cmd.cmd](data)
-                except:
+                except Exception:
                     raise MachOError("bad load command:\n%s" % cmd)
             cmds.append(cmd)
         return cmds
@@ -157,7 +162,10 @@ class MachO(BinFormat):
         "total size of LC_SEGMENT/64 commands"
         total = 0
         for c in self.cmds:
-            if c.cmd in (LC_SEGMENT, LC_SEGMENT_64,):
+            if c.cmd in (
+                LC_SEGMENT,
+                LC_SEGMENT_64,
+            ):
                 total += c.vmsize
         return total
 
@@ -168,11 +176,14 @@ class MachO(BinFormat):
         """
         res = (None, 0, 0)
         for c in self.cmds:
-            if c.cmd in (LC_SEGMENT, LC_SEGMENT_64,):
+            if c.cmd in (
+                LC_SEGMENT,
+                LC_SEGMENT_64,
+            ):
                 if c.vmaddr <= target < (c.vmaddr + c.vmsize):
                     res = (c, (target - c.vmaddr), c.vmaddr)
                     for s in c.sections:
-                        if s.addr <= target < s.addr+s.size_:
+                        if s.addr <= target < s.addr + s.size_:
                             res = (s, (target - s.addr), s.addr)
                             break
                     break
@@ -181,31 +192,30 @@ class MachO(BinFormat):
     def checksec(self):
         "check for usual OSX security features."
         R = {}
-        R['Arc'] = False
+        R["Arc"] = False
         R["Canary"] = False
         for f in iter(self.la_symbol_ptr.values()):
-            if f == b"___stack_chk_fail" or\
-               f == b"___stack_chk_guard":
+            if f == b"___stack_chk_fail" or f == b"___stack_chk_guard":
                 R["Canary"] = True
-            elif f==b'_objc_release':
+            elif f == b"_objc_release":
                 R["Arc"] = True
-        R['Signature'] = False
-        R['Encrypted'] = False
-        R['Restrict'] = False
-        R['RPath'] = False
+        R["Signature"] = False
+        R["Encrypted"] = False
+        R["Restrict"] = False
+        R["RPath"] = False
         for c in self.cmds:
             if c.cmd == LC_CODE_SIGNATURE:
-                R['Signature'] = True
+                R["Signature"] = True
             elif c.cmd in (LC_ENCRYPTION_INFO, LC_ENCRYPTION_INFO_64):
-                R['Encrypted'] = True
+                R["Encrypted"] = True
             elif c.cmd in (LC_SEGMENT, LC_SEGMENT_64):
-                if c.segname.decode().strip('\0').lower()=="__restrict":
-                    R['Restrict'] = True
+                if c.segname.decode().strip("\0").lower() == "__restrict":
+                    R["Restrict"] = True
             elif c.cmd == LC_RPATH:
-                R['RPath'] = True
-        R["NX (heap)"]  = (self.header.flags & MH_NO_HEAP_EXECUTION)!=0
-        R["NX (stack)"] = (self.header.flags & MH_ALLOW_STACK_EXECUTION)==0
-        R["PIE"] = (self.header.flags & MH_PIE)!=0
+                R["RPath"] = True
+        R["NX (heap)"] = (self.header.flags & MH_NO_HEAP_EXECUTION) != 0
+        R["NX (stack)"] = (self.header.flags & MH_ALLOW_STACK_EXECUTION) == 0
+        R["PIE"] = (self.header.flags & MH_PIE) != 0
         return R
 
     def data(self, target, size):
@@ -220,8 +230,8 @@ class MachO(BinFormat):
     def getfileoffset(self, target):
         "converts given target virtual address back to offset in file"
         s, offset, _ = self.getinfo(target)
-        fileoffset = s.fileoffset if hasattr(s,'fileoffset') else s.offset
-        return s.fileoffset + offset
+        fileoffset = s.fileoffset if hasattr(s, "fileoffset") else s.offset
+        return fileoffset + offset
 
     def readsegment(self, S):
         "returns data of segment/section S"
@@ -235,12 +245,9 @@ class MachO(BinFormat):
     def loadsegment(self, S, pagesize=None):
         "returns padded & aligned data of segment/section S"
         s = self.readsegment(S)
+        size = S.vmsize if hasattr(S, "vmsize") else S.size_
         if pagesize is None:
-            if hasattr(S,'vmsize'):
-                size = pagesize = S.vmsize
-            else:
-                size = S.size_
-                pagesize = S.align
+            pagesize = S.vmsize if hasattr(S, "vmsize") else S.align
         n, r = divmod(size, pagesize)
         if r > 0:
             n += 1
@@ -248,13 +255,13 @@ class MachO(BinFormat):
 
     def readsection(self, sect):
         "returns the segment/section data bytes matching given sect name"
-        if isinstance(sect,bytes):
+        if isinstance(sect, bytes):
             sect = sect.decode()
         if isinstance(sect, str):
             for c in self.cmds:
-                if c.cmd in (LC_SEGMENT,LC_SEGMENT_64):
+                if c.cmd in (LC_SEGMENT, LC_SEGMENT_64):
                     for s in c.sections:
-                        if s.sectname.decode().strip("\0")==sect:
+                        if s.sectname.decode().strip("\0") == sect:
                             return self.readsegment(s)
         else:
             return self.readsegment(sect)
@@ -262,13 +269,13 @@ class MachO(BinFormat):
 
     def getsection(self, sect):
         "returns the segment/section matching given sect name"
-        if isinstance(sect,bytes):
+        if isinstance(sect, bytes):
             sect = sect.decode()
         if isinstance(sect, str):
             for c in self.cmds:
-                if c.cmd in (LC_SEGMENT,LC_SEGMENT_64):
+                if c.cmd in (LC_SEGMENT, LC_SEGMENT_64):
                     for s in c.sections:
-                        if s.sectname.decode().strip("\0")==sect:
+                        if s.sectname.decode().strip("\0") == sect:
                             return s
         return None
 
@@ -488,6 +495,7 @@ class MachO(BinFormat):
 
 # ------------------------------------------------------------------------------
 
+
 @StructDefine(
     """
 I  :> magic
@@ -700,13 +708,14 @@ with Consts("mh.flags"):
     MH_HAS_TLV_DESCRIPTORS = 0x800000
     MH_NO_HEAP_EXECUTION = 0x1000000
 
+
 # ------------------------------------------------------------------------------
 def token_cmd_fmt(k, val, cls=None):
     s = []
     if val & LC_REQ_DYLD:
-        s.append(highlight([(Token.Name, "LC_REQ_DYLD")]))
-    s.append(token_name_fmt(k, val, "lc"))
-    return "+".join(s)
+        s.append((Token.Name, "LC_REQ_DYLD"))
+    s.extend(token_name_fmt(k, val, "lc"))
+    return TokenListJoin("+", s)
 
 
 @StructDefine(
@@ -823,7 +832,7 @@ class struct_segment_command(MachoFormatter):
                 self.sections.append(s)
 
     def segname_fmt(self, k, x, cls=None):
-        return highlight([(Token.String, str(x.strip(b"\0")))])
+        return [(Token.String, str(x.strip(b"\0")))]
 
 
 # ------------------------------------------------------------------------------
@@ -863,7 +872,7 @@ class struct_segment_command_64(MachoFormatter):
                 self.sections.append(s)
 
     def segname_fmt(self, k, x, cls=None):
-        return highlight([(Token.String, str(x.strip(b"\0")))])
+        return [(Token.String, str(x.strip(b"\0")))]
 
 
 # ------------------------------------------------------------------------------
@@ -959,7 +968,7 @@ class struct_section(MachoFormatter):
         self.address_formatter("reloff")
         if data:
             self.unpack(data, offset)
-            self.name = self.segname.decode().strip('\0')
+            self.name = self.segname.decode().strip("\0")
 
 
 # ------------------------------------------------------------------------------
@@ -989,7 +998,7 @@ class struct_section_64(MachoFormatter):
         self.address_formatter("reloff")
         if data:
             self.unpack(data, offset)
-            self.name = self.segname.decode().strip('\0')
+            self.name = self.segname.decode().strip("\0")
 
 
 # ------------------------------------------------------------------------------
@@ -1493,12 +1502,13 @@ class struct_nlist(MachoFormatter):
             if x & N_EXT:
                 l.append("N_PEXT")
             s = "+".join(l)
-            return highlight([(Token.Name, s)])
+            return [(Token.Name, s)]
 
     def ndesc_fmt(self, k, x, cls=None):
         s = token_name_fmt(k, x & 0xF, cls)
         if x & 0xF0:
-            s += "+" + token_flag_fmt(k, x & 0xF0, "lc.flag")
+            s.append((Token.Literal, "+"))
+            s.extend(token_flag_fmt(k, x & 0xF0, "lc.flag"))
         return s
 
 
@@ -1541,12 +1551,13 @@ class struct_nlist64(MachoFormatter):
             if x & N_EXT:
                 l.append("N_PEXT")
             s = "+".join(l)
-            return highlight([(Token.Name, s)])
+            return [(Token.Name, s)]
 
     def ndesc_fmt(self, k, x, cls=None):
         s = token_name_fmt(k, x & 0xF, cls)
         if x & 0xF0:
-            s += "+" + token_flag_fmt(k, x & 0xF0, "lc.flag")
+            s.append((Token.Literal, "+"))
+            s.extend(token_flag_fmt(k, x & 0xF0, "lc.flag"))
         return s
 
 
@@ -1608,6 +1619,7 @@ with Consts("lc.flag.n_desc"):
     N_WEAK_REF = 0x40
     N_WEAK_DEF = 0x80
 
+
 # ------------------------------------------------------------------------------
 @StructDefine(
     """
@@ -1652,6 +1664,7 @@ class struct_dysymtab_command(MachoFormatter):
 
 INDIRECT_SYMBOL_LOCAL = 0x80000000
 INDIRECT_SYMBOL_ABS = 0x40000000
+
 
 # ------------------------------------------------------------------------------
 @StructDefine(
@@ -1798,7 +1811,7 @@ class struct_uuid_command(MachoFormatter):
             self.unpack(data, offset)
 
     def uuid_fmt(self, k, x, cls=None):
-        return highlight([(Token.String, ".".join(("%02d" % v for v in x)))])
+        return [(Token.String, ".".join(("%02d" % v for v in x)))]
 
 
 # ------------------------------------------------------------------------------
@@ -1964,6 +1977,7 @@ with Consts("dyld.export"):
     EXPORT_SYMBOL_FLAGS_INDIRECT_DEFINITION = 0x08
     EXPORT_SYMBOL_FLAGS_HAS_SPECIALIZATIONS = 0x10
 
+
 # ------------------------------------------------------------------------------
 @StructDefine(
     """
@@ -2063,6 +2077,7 @@ with Consts("lc.kind"):
     DICE_KIND_JUMP_TABLE32 = 0x0004
     DICE_KIND_ABS_JUMP_TABLE32 = 0x0005
 
+
 # ------------------------------------------------------------------------------
 @StructDefine(
     """
@@ -2106,7 +2121,7 @@ class struct_source_version_command(MachoFormatter):
         C = (v >> 20) & 0x3FF
         D = (v >> 10) & 0x3FF
         E = v & 0x3FF
-        return highlight([(Token.String, "%d.%d.%d.%d.%d" % (A, B, C, D, E))])
+        return [(Token.String, "%d.%d.%d.%d.%d" % (A, B, C, D, E))]
 
 
 # ------------------------------------------------------------------------------
@@ -2132,7 +2147,7 @@ class struct_version_min_command(MachoFormatter):
         x = (v & 0xFFFF0000) >> 16
         y = (v & 0x0000FF00) >> 8
         z = v & 0xFF
-        return highlight([(Token.String, "%d.%d.%d" % (x, y, z))])
+        return [(Token.String, "%d.%d.%d" % (x, y, z))]
 
 
 # ------------------------------------------------------------------------------
@@ -2188,7 +2203,7 @@ class struct_build_tool_version(MachoFormatter):
         x = (v & 0xFFFF0000) >> 16
         y = (v & 0x0000FF00) >> 8
         z = v & 0xFF
-        return highlight([(Token.String, "%d.%d.%d" % (x, y, z))])
+        return [(Token.String, "%d.%d.%d" % (x, y, z))]
 
 
 with Consts("lc.tool"):

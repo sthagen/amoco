@@ -8,28 +8,14 @@
 render.py
 =========
 
-This module implements amoco's pygments interface to allow pretty printed
-outputs of tables of tokens built from amoco's expressions and instructions.
+This module implements amoco's rich interface to allow pretty printed
+outputs of rich renderables built from vltable instances.
 The rendered texts are used as main inputs for graphic engines to build
 their own views' objects.
 
-A token is a tuple (t,s) where t is a Token type and s is a python string.
-The highlight method uses the Token type to decorate the string s such that
-the targeted renderer is able to show the string with foreground/background
-colors and bold/underline/etc stroke attributes.
-
-The API of this module is essentially the vltable class which implements its
-str interface by calls to the highlight function, wrapping the pygments formatters
-to allow colored output.
-Note that more specialized formatting like HTML tables or even LaTeX blobs is
-also possible.
-
-If the pygments package is not found, all output default to a kind of
-"NullFormatter" that will just ignore input tokens' types and just assemble lines
-into undercorated unicode strings.
+A token is a tuple (t,s) where t is a style and s is a python string.
+The engine's pp function is reponsible for applying the style to the string.
 """
-
-from io import BytesIO as StringIO
 
 from amoco.config import conf
 
@@ -38,134 +24,7 @@ from amoco.logger import Log
 logger = Log(__name__)
 logger.debug("loading module")
 
-import re
-
-try:
-    from pygments.token import Token
-    from pygments.style import Style
-    from pygments.lexer import RegexLexer
-    from pygments.formatters import *
-except ImportError:
-    logger.verbose("pygments package not found, no renderer defined")
-    has_pygments = False
-
-    # metaclass definition, with a syntax compatible with python2 and python3
-    class TokenType(type):
-        def __getattr__(cls, key):
-            return key
-
-    Token_base = TokenType("Token_base", (), {})
-
-    class Token(Token_base):
-        pass
-
-    class NullFormatter(object):
-        def __init__(self, **options):
-            self.options = options
-
-        def format(self, tokensource, outfile):
-            for t, v in tokensource:
-                outfile.write(v.encode("utf-8"))
-
-    Formats = {
-        "Null": NullFormatter(),
-    }
-else:
-    logger.verbose("pygments package imported")
-    has_pygments = True
-    # define default dark style:
-    dark = {
-        Token.Literal  : "#fff",
-        Token.Address  : "#fb0",
-        Token.Orange   : "#fb0",
-        Token.Constant : "#f30",
-        Token.Red      : "#f30",
-        Token.Prefix   : "#fff",
-        Token.Mnemonic : "bold",
-        Token.Register : "#33f",
-        Token.Memory   : "#3ff",
-        Token.String   : "#3f3",
-        Token.Segment  : "#888",
-        Token.Comment  : "#f8f",
-        Token.Green    : "#8f8",
-        Token.Good     : "bold #8f8",
-        Token.Name     : "bold",
-        Token.Alert    : "bold #f00",
-        Token.Column   : "#000",
-    }
-    S = {}
-    # define sub-tokens with Mark/Taint/Hide atrribute,
-    # allowing to set tokens types like Token.Register.Taint
-    for k in dark.keys():
-        S[getattr(k,'Mark')]  = "bg:#224"
-        S[getattr(k,'Taint')] = "bg:#422"
-        S[getattr(k,'Hide')]  = "noinherit #222"
-    dark.update(S)
-
-    class DarkStyle(Style):
-        default_style = ""
-        styles = dark
-    # define default light style:
-    light = {
-        Token.Literal  : "",
-        Token.Address  : "#c30",
-        Token.Orange   : "#c30",
-        Token.Constant : "#d00",
-        Token.Red      : "#d00",
-        Token.Prefix   : "#000",
-        Token.Mnemonic : "bold",
-        Token.Register : "#00f",
-        Token.Memory   : "#00c0c0",
-        Token.String   : "#008800",
-        Token.Segment  : "#888",
-        Token.Comment  : "#a3a",
-        Token.Green    : "#008800",
-        Token.Good     : "bold #008800",
-        Token.Name     : "bold",
-        Token.Alert    : "bold #f00",
-        Token.Column   : "#fff",
-    }
-    S = {}
-    for k in light.keys():
-        S[getattr(k,'Mark')]  = "bg:#aaaaff"
-        S[getattr(k,'Taint')] = "bg:#ffaaaa"
-        S[getattr(k,'Hide')]  = "noinherit #fff"
-    light.update(S)
-
-    class LightStyle(Style):
-        default_style = ""
-        styles = light
-    # the default style is dark:
-    DefaultStyle = DarkStyle
-    # define supported formatters:
-    Formats = {
-        "Null"         : NullFormatter(encoding="utf-8"),
-        "Terminal"     : TerminalFormatter(style=DefaultStyle, encoding="utf-8"),
-        "Terminal256"  : Terminal256Formatter(style=DefaultStyle, encoding="utf-8"),
-        "TerminalDark" : Terminal256Formatter(style=DarkStyle, encoding="utf-8"),
-        "TerminalLight": Terminal256Formatter(style=LightStyle, encoding="utf-8"),
-        "Html"         : HtmlFormatter(style=LightStyle, encoding="utf-8"),
-        "HtmlDark"     : HtmlFormatter(style=DarkStyle, encoding="utf-8"),
-    }
-
-
-def highlight(toks, formatter=None, outfile=None):
-    """
-    Pretty prints a list of tokens using optionally
-    a given formatter and an output io buffer.
-
-    If no explicit formatter is given, use the formatter from configuration
-    or the Null formatter if not specified in the amoco configuration.
-    If no output io buffer is given, a local StringIO is used.
-
-    The returned value is a decorated python string.
-    """
-    formatter = formatter or Formats.get(conf.UI.formatter,"Null")
-    if isinstance(formatter, str):
-        formatter = Formats[formatter]
-    outfile = outfile or StringIO()
-    formatter.format(toks, outfile)
-    return outfile.getvalue().decode("utf-8")
+from pygments.token import Token
 
 
 def TokenListJoin(j, lst):
@@ -187,18 +46,19 @@ def TokenListJoin(j, lst):
     if isinstance(j, str):
         j = (Token.Literal, j)
     # init output list:
-    res = lst[0] if len(lst)>0 else []
-    if not isinstance(res,list):
+    res = lst[0] if len(lst) > 0 else []
+    if not isinstance(res, list):
         res = [res]
     for x in lst[1:]:
         res.append(j)
-        if isinstance(x,list):
+        if isinstance(x, list):
             res.extend(x)
         else:
             res.append(x)
     return res
 
-def LambdaTokenListJoin(j,f):
+
+def LambdaTokenListJoin(j, f):
     """
     returns a lambda that takes instruction i and returns the TokenListJoin
     build from join argument j and lst argument f(i).
@@ -206,7 +66,7 @@ def LambdaTokenListJoin(j,f):
     return lambda i: TokenListJoin(j, f(i))
 
 
-class vltable(object):
+class vltable:
     """
     A variable length table relies on pygments to pretty print tabulated data.
 
@@ -294,17 +154,17 @@ class vltable(object):
         self.update()
         return self
 
-    def addcolumn(self,lot,c=None):
+    def addcolumn(self, lot, c=None):
         "add column with provided toks (before index c if given) and update table"
         if c is None:
             c = self.ncols
-        for ir,toks in enumerate(lot):
+        for ir, toks in enumerate(lot):
             if ir < self.nrows:
                 r = self.rows[ir]
-                for _ in range(r.ncols,c):
+                for _ in range(r.ncols, c):
                     r.cols.append([(Token.Column, "")])
-                toks.insert(0,(Token.Column, ""))
-                r.cols.insert(c,toks)
+                toks.insert(0, (Token.Column, ""))
+                r.cols.insert(c, toks)
             else:
                 logger.warning("addcolumn: to much rows in provided list of tokens")
                 break
@@ -336,6 +196,8 @@ class vltable(object):
 
     def grep(self, regex, col=None, invert=False):
         "search for a regular expression in the table"
+        from re import search
+
         L = set()
         R = range(self.nrows)
         for i in R:
@@ -345,7 +207,7 @@ class vltable(object):
             for c, s in enumerate(C):
                 if c in self.hidden_c:
                     continue
-                if re.search(regex, s):
+                if search(regex, s):
                     L.add(i)
                     break
         if not invert:
@@ -365,36 +227,6 @@ class vltable(object):
         else:
             return 0
 
-    def __str__(self):
-        s = []
-        formatter = self.rowparams["formatter"]
-        outfile = self.rowparams["outfile"]
-        for i in range(self.nrows):
-            if i in self.hidden_r:
-                if not self.squash_r:
-                    s.append(
-                        highlight(
-                            [
-                                (
-                                    Token.Hide,
-                                    self.rows[i].show(raw=True, **self.rowparams),
-                                )
-                            ],
-                            formatter,
-                            outfile,
-                        )
-                    )
-            else:
-                s.append(self.rows[i].show(**self.rowparams))
-        if len(s) > self.maxlength:
-            s = s[: self.maxlength - 1]
-            s.append(highlight([(Token.Literal, icons.dots)], formatter, outfile))
-        if self.header:
-            s.insert(0, self.header)
-        if self.footer:
-            s.append(self.footer)
-        return "\n".join(s)
-
 
 class tokenrow(object):
     """
@@ -409,6 +241,7 @@ class tokenrow(object):
         cols (list): list of columns of tokens.
         ncols (int): number of columns in this row.
     """
+
     def __init__(self, toks=None):
         if toks is None:
             toks = []
@@ -420,7 +253,7 @@ class tokenrow(object):
         toks = [(t, "%s" % s) for (t, s) in toks]
         self.cols = self.cut(toks)
 
-    def cut(self,toks):
+    def cut(self, toks):
         "cut the raw list of tokens into a list of column of tokens"
         C = []
         c = []
@@ -431,6 +264,11 @@ class tokenrow(object):
                 c = []
         C.append(c)
         return C
+
+    def addcolumn(self, index=None, col=None):
+        c = col or []
+        c.append((Token.Column, ""))
+        self.cols.insert(index, c)
 
     def colsize(self, c):
         "return the column size (width)"
@@ -452,132 +290,89 @@ class tokenrow(object):
             r.append("".join([t[1] for t in c]))
         return r
 
-    def show(self, raw=False, **params):
-        "highlight the row with optional parameters"
-        formatter = params.get("formatter", None)
-        outfile = params.get("outfile", None)
-        align = params.get("align", self.align)
-        fill = params.get("fill", self.fill)
-        sep = params.get("sep", self.separator)
-        width = params.get("maxwidth", self.maxwidth)
-        colsz = params.get("colsize")
-        hidden_c = params.get("hidden_c", set())
-        squash_c = params.get("squash_c", True)
-        head = params.get("head", "")
-        tail = params.get("tail", "")
-        if raw:
-            formatter = "Null"
-            outfile = None
-        r = [head]
-        tz = 0
-        for i, c in enumerate(self.cols):
-            toks = []
-            sz = 0
-            mz = colsz[i]
-            tz += mz
-            if tz > width:
-                mz = mz - (tz - width)
-            skip = False
-            for tt, tv in c:
-                if tt == Token.Column:
-                    break
-                if skip:
-                    continue
-                toks.append([tt, "%s" % tv])
-                sz += len(tv)
-                if sz > mz:
-                    q = (sz - mz) + 3
-                    toks[-1][1] = tv[0:-q] + "###"
-                    skip = True
-            if sz < mz:
-                pad = fill * (mz - sz)
-                if align == "<":
-                    toks[-1][1] += pad
-                elif align == ">":
-                    toks[0][1] = pad + toks[0][1]
-            if i in hidden_c:
-                if not squash_c:
-                    toks = [(Token.Hide, highlight(toks, "Null", None))]
-                else:
-                    toks = []
-            r.append(highlight(toks, formatter, outfile))
-            if tt == Token.Column and sep:
-                r.append(sep)
-        r.append(tail)
-        if self.label:
-            label = highlight([self.label],formatter,outfile)
-            r.insert(0,"%s:\n"%label)
-        return "".join(r)
+    def has_tokentype(self, tt):
+        alltt = set()
+        for c in self.cols:
+            alltt.update(set(x[0] for x in c))
+        if isinstance(tt, Token):
+            return tt in alltt
+        else:
+            return any(((tt in list(x)) for x in alltt))
+
 
 class Icons:
-    sep   = ' | '
-    dots  = '...'
-    tri   = ' > '
-    lar   = ' <- '
-    dbl   = '='
-    hor   = '-'
-    ver   = '|'
-    top   = 'T'
-    bot   = '_'
-    usep  = ' \u2502 '
-    udots = '\u2504 '
-    utri  = ' \u25b6 '
-    ular  = ' \u21fd '
-    udbl  = '\u2550'
-    uhor  = '\u2500'
-    uver  = '\u2502'
-    utop  = '\u22A4'
-    ubot  = '\u22A5'
-    mop   = {}
+    sep = " | "
+    dots = "..."
+    tri = " > "
+    lar = " <- "
+    dbl = "="
+    hor = "-"
+    ver = "|"
+    top = "T"
+    bot = "_"
+    usep = " \u2502 "
+    udots = "\u2504 "
+    utri = " \u25b6 "
+    ular = " \u21fd "
+    udbl = "\u2550"
+    uhor = "\u2500"
+    uver = "\u2502"
+    utop = "\u22a4"
+    ubot = "\u22a5"
+    mop = {}
 
-    def __getattribute__(self,a):
-        if a not in ('mop','op') and conf.UI.unicode:
-            return super().__getattribute__('u'+a)
+    def __getattribute__(self, a):
+        if a not in ("mop", "op") and conf.UI.unicode:
+            return super().__getattribute__("u" + a)
         else:
             return super().__getattribute__(a)
-    def op(self,symbol):
+
+    def op(self, symbol):
         if conf.Cas.unicode:
-            return self.mop.get(symbol,symbol)
+            return self.mop.get(symbol, symbol)
         else:
             return symbol
 
+
 icons = Icons()
 # define operator unicode symbols:
-icons.mop["S"]   = "\u2211"       # Sigma
-icons.mop["-"]   = "\u2212"
-icons.mop["**"]  = "\u2217"
-icons.mop["&"]   = "\u2227"
-icons.mop["|"]   = "\u2228"
-icons.mop["^"]   = "\u2295"
-icons.mop["~"]   = "\u2310"
-icons.mop["=="]  = "\u225f"
-icons.mop["!="]  = "\u2260"
-icons.mop["<="]  = "\u2264"
-icons.mop[">="]  = "\u2265"
-icons.mop[">=."] = "\u22DD"
-icons.mop["<."]  = "\u22D6"
-icons.mop["<<"]  = "\u226a"
-icons.mop[">>"]  = "\u226b"
-icons.mop[".>>"] = "\u00B1\u226b"
+icons.mop["S"] = "\u2211"  # Sigma
+icons.mop["-"] = "\u2212"
+icons.mop["**"] = "\u2217"
+icons.mop["&"] = "\u2227"
+icons.mop["|"] = "\u2228"
+icons.mop["^"] = "\u2295"
+icons.mop["~"] = "\u2310"
+icons.mop["=="] = "\u225f"
+icons.mop["!="] = "\u2260"
+icons.mop["<="] = "\u2264"
+icons.mop[">="] = "\u2265"
+icons.mop[">=."] = "\u22dd"
+icons.mop["<."] = "\u22d6"
+icons.mop["<<"] = "\u226a"
+icons.mop[">>"] = "\u226b"
+icons.mop[".>>"] = "\u00b1\u226b"
 icons.mop["<<<"] = "\u22d8"
 icons.mop[">>>"] = "\u22d9"
 
-def replace_mnemonic_token(l,value):
-    for i in range(len(l)):
-        tn,tv = l[i]
-        if tn==Token.Mnemonic:
-            tv = value.ljust(len(tv))
-        l[i] = (tn,tv)
 
-def replace_opn_token(l,n,value):
-    index = 1+(2*n)
+def replace_mnemonic_token(l, value):
+    for i in range(len(l)):
+        tn, tv = l[i]
+        if tn == Token.Mnemonic:
+            tv = value.ljust(len(tv))
+        l[i] = (tn, tv)
+
+
+def replace_opn_token(l, n, value):
+    index = 1 + (2 * n)
     if value is None:
-        if index+1 < len(l):
-            l.pop(index+1)
+        if index + 1 < len(l):
+            l.pop(index + 1)
             l.pop(index)
     else:
-        tn,tv = l[index]
-        if isinstance(value,tuple):
+        tn, tv = l[index]
+        if isinstance(value, tuple):
             l[index] = value
         else:
             l[index] = (tn, value)

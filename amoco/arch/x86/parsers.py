@@ -4,6 +4,7 @@
 import pyparsing as pp
 
 from amoco.arch.x86 import spec_ia32, spec_fpu, spec_sse
+from amoco.arch.core import type_data_processing
 from amoco.logger import Log
 
 logger = Log(__name__)
@@ -11,16 +12,17 @@ logger.debug("loading module")
 
 spec_table = {}
 for spec in spec_ia32.ISPECS + spec_fpu.ISPECS + spec_sse.ISPECS:
-    mnemo = spec.iattr.get('mnemonic', None)
-    if not mnemo in spec_table:
+    mnemo = spec.iattr.get("mnemonic", None)
+    if mnemo not in spec_table:
         spec_table[mnemo] = [spec]
-    elif not spec in spec_table[mnemo]:
+    elif spec not in spec_table[mnemo]:
         spec_table[mnemo].append(spec)
+
 
 def set_spec(i, spec_table):
     spec_list = spec_table[i.mnemonic]
     ispec_idx = 0
-    if i.mnemonic in ('CALL','JMP'):
+    if i.mnemonic in ("CALL", "JMP"):
         if i.operands[0]._is_mem:
             ispec_idx = 0
         elif i.operands[0]._is_reg and not i.operands[0]._is_lab:
@@ -31,10 +33,11 @@ def set_spec(i, spec_table):
         if not len(i.operands):
             ispec_idx = -1
     i.spec = spec_list[ispec_idx]
-    if 'type' in i.spec.iattr:
-        i.type = i.spec.iattr['type']
+    if "type" in i.spec.iattr:
+        i.type = i.spec.iattr["type"]
     else:
         i.type = type_data_processing
+
 
 # ------------------------------------------------------------------------------
 # parser for x86 or x64 AT&T assembler syntax.
@@ -123,7 +126,8 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
 
     def action_exp(toks):
         if len(toks) != 1:
-            NEVER
+            logger.error("action_exp: bad toks")
+            return
         toks = toks[0]
         if not isinstance(toks, pp.ParseResults):
             return
@@ -168,7 +172,7 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
             return toks[0] + toks[2] + toks[4] + toks[6]
         else:
             print("EXP %s" % toks)
-            FAIL
+            raise ValueError(toks)
 
     exp.setParseAction(action_exp)
 
@@ -217,7 +221,7 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
             if env.internals.get("keep_order"):
                 addr.prop |= 16
         else:
-            NEVER
+            logger.error("action_bis: bad toks")
         return addr
 
     bis.setParseAction(action_bis)
@@ -228,7 +232,7 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
     def action_mem(toks):
         # we use str(_) because != is redefined for amoco expressions
         # and fails when comparing with strings
-        r = [str(_) for _ in toks]
+        r = [str(t) for t in toks]
         if ":" in r:
             assert len(r) == 3
             assert ":" == r[1]
@@ -374,16 +378,16 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
                         if i.mnemonic[len(pfx) : -1] in i.cond[0].split("/"):
                             break
                     else:
-                        NEVER
+                        logger.error("action_instr: bad CMOV.cond")
                 elif pfx == "SET" and i.mnemonic[-1] == "B":
                     # gcc 3.2.3
                     for i.cond in CONDITION_CODES.values():
                         if i.mnemonic[len(pfx) : -1] in i.cond[0].split("/"):
                             break
                     else:
-                        NEVER
+                        logger.error("action_instr: bad SET.cond")
                 else:
-                    NEVER
+                    logger.error("action_instr: bad condition codes")
             i.mnemonic = pfx + "cc"
             if pfx == "J":
                 i.operands[0] = i.operands[0].a.base + i.operands[0].a.disp
@@ -421,7 +425,11 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
             i.mnemonic = i.mnemonic[:-2] + "X"
         elif i.mnemonic == "MOVD":
             pass
-        elif i.mnemonic in ("FLDCW", "FSTCW", "FNSTCW",):
+        elif i.mnemonic in (
+            "FLDCW",
+            "FSTCW",
+            "FNSTCW",
+        ):
             assert i.operands[0]._is_mem
             i.operands[0].size = 16
         elif i.mnemonic == "CMPXCHG":
@@ -522,17 +530,17 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
         elif i.mnemonic == "MOVABSQ":
             # gcc generates 'movabsq $cst, %reg' instead of 'movq $cst, %reg'
             i.mnemonic = "MOV"
-            for _ in i.operands:
-                if _._is_mem:
-                    _.size = 64
-                if _._is_cst:
-                    _.size = 64
-                    _.v &= _.mask
-                if _._is_lab:
-                    _.size = 64
+            for op in i.operands:
+                if op._is_mem:
+                    op.size = 64
+                if op._is_cst:
+                    op.size = 64
+                    op.v &= op.mask
+                if op._is_lab:
+                    op.size = 64
         else:
-            for _ in att_mnemo_suffix_one_ptr:
-                if mnemo[:-1] != _:
+            for x in att_mnemo_suffix_one_ptr:
+                if mnemo[:-1] != x:
                     continue
                 # Detect MMX MOVQ instruction, not 64-bit register MOV for x64
                 if (
@@ -551,7 +559,7 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
                     if i.operands[1]._is_mem:
                         i.operands[1].size = 64
                     break
-                i.mnemonic = _.upper()
+                i.mnemonic = x.upper()
                 sz = {"b": 8, "w": 16, "l": 32, "q": 64}[mnemo[-1]]
                 if "q" == mnemo[-1]:
                     i.misc.update({"REX": (1, 0, 0, 0)})
@@ -572,32 +580,32 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
                             set_size(e.l, sz)
                         set_size(e.r, sz)
 
-                for _ in i.operands:
-                    set_size(_, sz)
-            for _ in att_mnemo_suffix_one_iflt:
-                if mnemo[:-1] != _:
+                for op in i.operands:
+                    set_size(op, sz)
+            for x in att_mnemo_suffix_one_iflt:
+                if mnemo[:-1] != x:
                     continue
-                i.mnemonic = _.upper()
+                i.mnemonic = x.upper()
                 sz = {"s": 16, "l": 32, "q": 64}[mnemo[-1]]
-                for _ in i.operands:
-                    if _._is_mem:
-                        _.size = sz
+                for op in i.operands:
+                    if op._is_mem:
+                        op.size = sz
             if mnemo[-2:] == "ll" and mnemo[:-2] in att_mnemo_suffix_one_iflt:
                 # clang on MacOS X
                 i.mnemonic = mnemo[:-2].upper()
-                for _ in i.operands:
-                    if _._is_mem:
-                        _.size = 64
-            for _ in att_mnemo_float_optional_suffix:
-                if mnemo[:-1] != _:
+                for op in i.operands:
+                    if op._is_mem:
+                        op.size = 64
+            for x in att_mnemo_float_optional_suffix:
+                if mnemo[:-1] != x:
                     continue
                 if mnemo[-1] in ("i", "p", "r", "z", "1"):
                     continue
-                i.mnemonic = _.upper()
+                i.mnemonic = x.upper()
                 sz = {"s": 32, "l": 64, "t": 80}[mnemo[-1]]
-                for _ in i.operands:
-                    if _._is_mem:
-                        _.size = sz
+                for op in i.operands:
+                    if op._is_mem:
+                        op.size = sz
         # Implicit operands
         if i.mnemonic in ("AAD", "AAM"):
             if len(i.operands) == 0:
@@ -638,13 +646,28 @@ def att_syntax_gen(env, CONDITION_CODES, cpu_addrsize, instruction):
         ):
             i.operands.insert(0, env.st(0))
         elif (
-            i.mnemonic in ("FADDP", "FSUBP", "FSUBRP", "FMULP", "FDIVP", "FDIVRP",)
+            i.mnemonic
+            in (
+                "FADDP",
+                "FSUBP",
+                "FSUBRP",
+                "FMULP",
+                "FDIVP",
+                "FDIVRP",
+            )
             and len(i.operands) == 1
             and not i.operands[0]._is_mem
         ):
             i.operands.append(env.st(0))
         elif (
-            i.mnemonic in ("FCOM", "FCOMP", "FUCOM", "FUCOMP",) and len(i.operands) == 0
+            i.mnemonic
+            in (
+                "FCOM",
+                "FCOMP",
+                "FUCOM",
+                "FUCOMP",
+            )
+            and len(i.operands) == 0
         ):
             i.operands.append(env.st(1))
         return i
@@ -669,7 +692,6 @@ att_syntax = att_syntax_gen(env, CONDITION_CODES, 32, instruction_x86)
 # parser for x86 INTEL assembler syntax.
 # (not working)
 class intel_syntax:
-
     divide = False
     noprefix = False
 
@@ -725,11 +747,12 @@ class intel_syntax:
 def test_parser(cls):
     while 1:
         try:
-            res = raw_input("%s> " % cls.__name__)
+            res = input("%s> " % cls.__name__)
             E = cls.instr.parseString(res, True)
             print(E)
         except EOFError:
             return
+
 
 if __name__ == "__main__":
     test_parser(att_syntax)

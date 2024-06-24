@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.w65c02.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.w65c02 import env
+from amoco.arch.w65c02 import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_w65c02 = type("instruction_w65c02", (instruction,), {})
-instruction_w65c02.set_uarch(uarch)
 
 from amoco.arch.w65c02.formats import w65c02_full
 
@@ -20,10 +17,4 @@ from amoco.arch.w65c02 import spec
 
 disassemble = disassembler([spec], iclass=instruction_w65c02)
 
-
-def PC(state=None):
-    return pc
-
-
-def get_data_endian():
-    return 1  # LE
+cpu = CPU(env, asm, disassemble, env.pc)

@@ -23,12 +23,16 @@ level independently, or use the ``set_quiet()``, ``set_debug()`` or
 
 Examples:
 
-    Setting the mapper module to ``'VERBOSE'`` level::
+    Setting the mapper module to ``'VERBOSE'`` level:
+
+.. code-block:: python
 
         In [1]: import amoco
         In [2]: amoco.cas.mapper.logger.setlevel('VERBOSE')
 
-    Setting all modules loggers to ``'ERROR'`` level::
+    Setting all modules loggers to ``'ERROR'`` level:
+
+.. code-block:: python
 
         In [2]: amoco.logger.set_quiet()
 
@@ -43,18 +47,35 @@ VERBOSE = 15
 logging.addLevelName(VERBOSE, "VERBOSE")
 # logging.captureWarnings(True)
 
-default_format = logging.Formatter("[%(levelname)-7s] %(name)-32s: %(message)s")
 
 from amoco.config import conf
+
+default_format = logging.Formatter(
+    "[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%X"
+)
+default_handler = logging.StreamHandler()
+
+from rich.console import Console
+from rich.logging import RichHandler
+
+default_format = logging.Formatter("%(name)s: %(message)s")
+default_handler = RichHandler(
+    show_path=False,
+    console=Console(stderr=True),
+    log_time_format="[%X]",
+    rich_tracebacks=True,
+)
 
 # setting logfile global. Static definition here, see below for traits observer.
 
 logfile = None
 
-def set_file_logging(filename,level):
+
+def set_file_logging(filename, level):
     global logfile
     if not filename and conf.Log.tempfile:
         import tempfile
+
         filename = tempfile.mkstemp(".log", prefix="amoco-")[1]
     if filename:
         logfile = logging.FileHandler(filename, mode="w")
@@ -63,8 +84,10 @@ def set_file_logging(filename,level):
     else:
         logfile = None
 
+
 # By default, we log at INFO level in console, and VERBOSE in file:
-set_file_logging(conf.Log.filename,VERBOSE)
+set_file_logging(conf.Log.filename, VERBOSE)
+
 
 class Log(logging.Logger):
     """
@@ -76,7 +99,9 @@ class Log(logging.Logger):
     ``Log.loggers`` which maps their names with associated instances.
 
     The recommended way to create a Log object is to add, near the begining
-    of amoco modules::
+    of amoco modules:
+
+    .. code-block:: python
 
         from amoco.logger import Log
         logger = Log(__name__)
@@ -85,7 +110,7 @@ class Log(logging.Logger):
 
     loggers = {}
 
-    def __init__(self, name, handler=logging.StreamHandler()):
+    def __init__(self, name, handler=default_handler):
         super().__init__(name)
         handler.setFormatter(default_format)
         self.addHandler(handler)
@@ -96,24 +121,6 @@ class Log(logging.Logger):
 
     def verbose(self, msg, *args, **kargs):
         return self.log(VERBOSE, msg, *args, **kargs)
-
-    def progress(self, count, total=0, pfx=""):
-        h = self.handlers[0]
-        if h.level > VERBOSE:
-            return
-        term = h.stream
-        if not term.isatty():
-            return
-        if total > 0:
-            barlen = 40
-            fillr = min((count + 1.0) / total, 1.0)
-            done = int(round(barlen * fillr))
-            ratio = round(100.0 * fillr, 1)
-            s = ("=" * done).ljust(barlen, "-")
-            term.write("%s[%s] %s%%\r" % (pfx, s, ratio))
-        else:
-            s = ("%s[%d]" % (pfx, count)).ljust(80, " ")
-            term.write("%s\r" % s)
 
     def setLevel(self, lvl):
         return super().setLevel(lvl)
@@ -127,14 +134,12 @@ class Log(logging.Logger):
 
 
 def set_quiet():
-    """set all loggers to ``'ERROR'`` level
-    """
+    """set all loggers to ``'ERROR'`` level"""
     set_log_all(logging.ERROR)
 
 
 def set_debug():
-    """set all loggers to ``'DEBUG'`` level
-    """
+    """set all loggers to ``'DEBUG'`` level"""
     set_log_all(logging.DEBUG)
 
 
@@ -147,15 +152,19 @@ def set_log_all(level):
     for l in Log.loggers.values():
         l.setLevel(level)
 
+
 def set_log_module(name, level):
     if name in Log.loggers:
         Log.loggers[name].setLevel(level)
+
 
 def log_level_observed(change):
     level = change["new"]
     set_log_all(level)
 
+
 conf.Log.observe(log_level_observed, names=["level"])
+
 
 def reset_log_file(filename, level=logging.DEBUG):
     """set DEBUG log file for all loggers.
@@ -168,9 +177,10 @@ def reset_log_file(filename, level=logging.DEBUG):
     if logfile is not None:
         logfile.close()
         unset_log_file()
-    set_file_logging(filename,level)
+    set_file_logging(filename, level)
     for l in Log.loggers.values():
         l.addHandler(logfile)
+
 
 def unset_log_file():
     global logfile
@@ -179,17 +189,21 @@ def unset_log_file():
             l.removeHandler(logfile)
         logfile = None
 
+
 def log_tempfile_observed(change):
     if not conf.Log.filename:
-        if change['new'] is True:
+        if change["new"] is True:
             if not logfile:
-                reset_log_file("",VERBOSE)
+                reset_log_file("", VERBOSE)
         else:
             unset_log_file()
 
+
 conf.Log.observe(log_tempfile_observed, names=["tempfile"])
+
 
 def log_filename_observed(change):
     reset_log_file(change["new"])
+
 
 conf.Log.observe(log_filename_observed, names=["filename"])

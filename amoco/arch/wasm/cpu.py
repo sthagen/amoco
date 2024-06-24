@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.wasm.asm import *
-
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.wasm import env
+from amoco.arch.wasm import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_wasm = type("instruction_wasm", (instruction,), {})
-instruction_wasm.set_uarch(uarch)
 
 from amoco.arch.wasm.formats import DW_full
 
@@ -26,10 +24,4 @@ disassemble = disassembler([spec], iclass=instruction_wasm)
 # If an instruction needs more bytes in must rely on the xdata API (see arch.core.)
 disassemble.maxlen = 16
 
-
-def PC(state=None):
-    return op_ptr
-
-
-def get_data_endian():
-    return 1
+cpu = CPU(env, asm, disassemble, env.op_ptr)

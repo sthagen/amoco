@@ -44,7 +44,7 @@ REF_OBJ_CALLABLE = 5
 
 
 class reference(object):
-    """ A reference to all kinds of python2/3 function or method.
+    """A reference to all kinds of python2/3 function or method.
     Handles reference to a regular function, a bound method, a callable object,
     a python3 unbound (or static) method, or a python2 staticmethod.
 
@@ -52,7 +52,7 @@ class reference(object):
         obj: function/method/callable to be referenced
 
     Attributes:
-        ctx: "context" in which the referenced function/method is defined. 
+        ctx: "context" in which the referenced function/method is defined.
              This is the module for a regular function, the class for an unbound method,
              or the object instance for a bound method or callable.
         type (int): the type of object referenced.

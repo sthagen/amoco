@@ -6,13 +6,21 @@
 
 from amoco.arch.w65c02 import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_system,
+)
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # W65C02(S) instruction decoders
 # -------------------------------------------------------
 
 ISPECS = []
+
 
 # absolute addressing: a
 # --------------------
@@ -42,22 +50,24 @@ ISPECS = []
 @ispec("24<[a(16) {ed}]", mnemonic="SBC")
 @ispec("24<[a(16) {ee}]", mnemonic="INC")
 def w65c02_absolute(obj, a):
-    adr = env.cst(a,16)
-    if obj.mnemonic in ("JMP","JSR"):
+    adr = env.cst(a, 16)
+    if obj.mnemonic in ("JMP", "JSR"):
         obj.operands = [adr]
         obj.type = type_control_flow
-        obj.misc['ref'] = adr
+        obj.misc["ref"] = adr
     else:
-        obj.operands = [env.mem(adr,8)]
+        obj.operands = [env.mem(adr, 8)]
         obj.type = type_data_processing
+
 
 # absolute indexed indirect : (a,x)
 # ---------------------------------
 @ispec("24<[a(16) {7c}]", mnemonic="JMP")
 def w65c02_aiix(obj, a):
-    adr = env.cst(a,16) + env.X_
-    obj.operands = [env.mem(adr,16)]
+    adr = env.cst(a, 16) + env.X_
+    obj.operands = [env.mem(adr, 16)]
     obj.type = type_control_flow
+
 
 # absolute indexed with X : a,x
 # -----------------------------
@@ -79,9 +89,10 @@ def w65c02_aiix(obj, a):
 @ispec("24<[a(16) {fd}]", mnemonic="SBC")
 @ispec("24<[a(16) {fe}]", mnemonic="INC")
 def w65c02_aix(obj, a):
-    adr = env.cst(a,16) + env.X_
-    obj.operands = [env.mem(adr,8)]
+    adr = env.cst(a, 16) + env.X_
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # absolute indexed with Y : a,y
 # -------------------------
@@ -95,17 +106,19 @@ def w65c02_aix(obj, a):
 @ispec("24<[a(16) {d9}]", mnemonic="CMP")
 @ispec("24<[a(16) {f9}]", mnemonic="SBC")
 def w65c02_aiy(obj, a):
-    adr = env.cst(a,16) + env.Y_
-    obj.operands = [env.mem(adr,8)]
+    adr = env.cst(a, 16) + env.Y_
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # absolute indirect: (a)
 # ------------------
 @ispec("24<[a(16) {6c}]", mnemonic="JMP")
 def w65c02_ai(obj, a):
-    adr = env.cst(a,16)
-    obj.operands = [env.mem(adr,16)]
+    adr = env.cst(a, 16)
+    obj.operands = [env.mem(adr, 16)]
     obj.type = type_control_flow
+
 
 # accumulator addressing : A
 # ------------------------
@@ -119,6 +132,7 @@ def w65c02_ai(obj, a):
 def w65c02_A(obj):
     obj.operands = [env.A]
     obj.type = type_data_processing
+
 
 # immediate addressing: #
 # ---------------------
@@ -135,8 +149,9 @@ def w65c02_A(obj):
 @ispec("16<[c(8) {e0}]", mnemonic="CPX")
 @ispec("16<[c(8) {e9}]", mnemonic="SBC")
 def w65c02_immediate(obj, c):
-    obj.operands = [env.cst(c,8)]
+    obj.operands = [env.cst(c, 8)]
     obj.type = type_data_processing
+
 
 # implied addressing : i
 # --------------------
@@ -163,6 +178,7 @@ def w65c02_immediate(obj, c):
 def w65c02_implied(obj):
     obj.operands = []
 
+
 # program counter relative: r
 # -------------------------
 @ispec("16<[a(8) {10}]", mnemonic="BPL")
@@ -175,10 +191,11 @@ def w65c02_implied(obj):
 @ispec("16<[a(8) {d0}]", mnemonic="BNE")
 @ispec("16<[a(8) {f0}]", mnemonic="BEQ")
 def w65c02_pcr(obj, a):
-    offset = env.cst(a,8).signextend(16)
+    offset = env.cst(a, 8).signextend(16)
     obj.operands = [offset]
     obj.misc["pc_ref"] = offset
     obj.type = type_control_flow
+
 
 @ispec("24<[a(8) b(8) {0f}]", mnemonic="BBR0")
 @ispec("24<[a(8) b(8) {1f}]", mnemonic="BBR1")
@@ -197,11 +214,12 @@ def w65c02_pcr(obj, a):
 @ispec("24<[a(8) b(8) {ef}]", mnemonic="BBS6")
 @ispec("24<[a(8) b(8) {ff}]", mnemonic="BBS7")
 def w65c02_bb(obj, a, b):
-    offset = env.cst(a,8).signextend(16)
-    cond = env.cst(b,8)
-    obj.operands = [cond,offset]
+    offset = env.cst(a, 8).signextend(16)
+    cond = env.cst(b, 8)
+    obj.operands = [cond, offset]
     obj.misc["pc_ref"] = offset
     obj.type = type_control_flow
+
 
 # stack addressing: s
 # -----------------
@@ -218,6 +236,7 @@ def w65c02_bb(obj, a, b):
 @ispec("8<[{fa}]", mnemonic="PLX", type=type_data_processing)
 def w65c02_stack(obj):
     obj.operands = []
+
 
 # zero page addressing: zp
 # ---------------------
@@ -262,9 +281,10 @@ def w65c02_stack(obj):
 @ispec("16<[a(8) {e7}]", mnemonic="SMB6")
 @ispec("16<[a(8) {f7}]", mnemonic="SMB7")
 def w65c02_zp(obj, a):
-    adr = env.cst(a,16)
-    obj.operands = [env.mem(adr,8)]
+    adr = env.cst(a, 16)
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # zero page indexed indirect addressing: (zp,x)
 # --------------------------------------
@@ -277,10 +297,11 @@ def w65c02_zp(obj, a):
 @ispec("16<[a(8) {c1}]", mnemonic="CMP")
 @ispec("16<[a(8) {e1}]", mnemonic="SBC")
 def w65c02_zpii(obj, a):
-    off = env.cst(a,16) + env.X_
-    adr = env.mem(off,8).zeroextend(16)
-    obj.operands = [env.mem(adr,8)]
+    off = env.cst(a, 16) + env.X_
+    adr = env.mem(off, 8).zeroextend(16)
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # zero page indexed with X : zp,x
 # --------------------------
@@ -303,18 +324,20 @@ def w65c02_zpii(obj, a):
 @ispec("16<[a(8) {f5}]", mnemonic="SBC")
 @ispec("16<[a(8) {f6}]", mnemonic="INC")
 def w65c02_zpx(obj, a):
-    adr = env.cst(a,16) + env.X_
-    obj.operands = [env.mem(adr,8)]
+    adr = env.cst(a, 16) + env.X_
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # zero page indexed with Y : zp,y
 # --------------------------
 @ispec("16<[a(8) {96}]", mnemonic="STX")
 @ispec("16<[a(8) {b6}]", mnemonic="LDX")
 def w65c02_zpy(obj, a):
-    adr = env.cst(a,16) + env.Y_
-    obj.operands = [env.mem(adr,8)]
+    adr = env.cst(a, 16) + env.Y_
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # zero page indirect: (zp)
 # -------------------
@@ -327,9 +350,10 @@ def w65c02_zpy(obj, a):
 @ispec("16<[a(8) {d2}]", mnemonic="CMP")
 @ispec("16<[a(8) {f2}]", mnemonic="SBC")
 def w65c02_zpi(obj, a):
-    adr = env.mem(env.cst(a,16),16)
-    obj.operands = [env.mem(adr,8)]
+    adr = env.mem(env.cst(a, 16), 16)
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # zero page indirect indexed with Y: (zp),y
 # ----------------------------------
@@ -342,9 +366,10 @@ def w65c02_zpi(obj, a):
 @ispec("16<[a(8) {d1}]", mnemonic="CMP")
 @ispec("16<[a(8) {f1}]", mnemonic="SBC")
 def w65c02_zpiy(obj, a):
-    adr = env.mem(env.cst(a,16),16) + env.Y_
-    obj.operands = [env.mem(adr,8)]
+    adr = env.mem(env.cst(a, 16), 16) + env.Y_
+    obj.operands = [env.mem(adr, 8)]
     obj.type = type_data_processing
+
 
 # no-op (ignored):
 # ----------------
@@ -395,4 +420,3 @@ def w65c02_zpiy(obj, a):
 def w65c02_nop(obj):
     obj.operands = []
     obj.type = type_data_processing
-

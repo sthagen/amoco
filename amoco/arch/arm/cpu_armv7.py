@@ -4,15 +4,9 @@
 # Copyright (C) 2006-2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.arch.arm.v7.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
-
-from amoco.arch.core import instruction, disassembler
-
-instruction_armv7 = type("instruction_armv7", (instruction,), {})
-instruction_armv7.set_uarch(uarch)
+from amoco.arch.arm.v7 import env
+from amoco.arch.arm.v7 import asm
+from amoco.arch.core import instruction, disassembler, CPU
 
 # define disassembler:
 from amoco.arch.arm.v7 import spec_armv7
@@ -20,18 +14,24 @@ from amoco.arch.arm.v7 import spec_thumb
 
 from amoco.arch.arm.v7.formats import ARM_V7_full
 
+instruction_armv7 = type("instruction_armv7", (instruction,), {})
 instruction_armv7.set_formatter(ARM_V7_full)
 
 
-mode = lambda: internals["isetstate"]
-endian = lambda: 1 if internals["ibigend"] == 0 else -1
+def mode(**kargs):
+    return env.internals["isetstate"]
+
+
+def endian(**kargs):
+    return 1 if env.internals["ibigend"] == 0 else -1
+
 
 disassemble = disassembler([spec_armv7, spec_thumb], instruction_armv7, mode, endian)
 
 
-def PC(state=None):
-    return pc_
+class CPU_ARMv7(CPU):
+    def get_data_endian(self):
+        return 1 if env.internals["endianstate"] == 0 else -1
 
 
-def get_data_endian():
-    return 1 if internals["endianstate"] == 0 else -1
+cpu = CPU_ARMv7(env, asm, disassemble, env.pc_)

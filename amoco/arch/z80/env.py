@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc, mem
+from amoco.cas.expressions import is_reg_stack, is_reg_pc, is_reg_flags
+from amoco.cas.expressions import *  # noqa: F403
 
 # registers :
 # -----------
@@ -91,3 +93,5 @@ CONDITION = {
 }
 
 registers = reg8 + reg8_ + [sp, pc, f]
+
+internals = {}

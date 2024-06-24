@@ -6,11 +6,16 @@
 
 from . import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec
+from amoco.arch.core import type_data_processing
 
 ISPECS = []
 
+
 @ispec("16<[ 000001 00 rY(4) rX(4) ]", mnemonic="se_add")
-def ppc_addx(obj,rX,rY):
-    obj.operands = [env.GPR[rX],env.GPR[rY]]
+def ppc_addx(obj, rX, rY):
+    obj.operands = [env.GPR[rX], env.GPR[rY]]
     obj.type = type_data_processing
+
+
+# TODO

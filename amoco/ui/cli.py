@@ -12,10 +12,12 @@ This module allows to prompt for high-level "amoco" commands defined in the srv 
 It provides a convinient way of emulating a binary from a gdb-like interface rather than
 from the [i]python console. See :mod:`srv` module for details.
 """
+
 import cmd
 import time
 from amoco.config import conf
-from amoco.ui.render import Token, highlight
+from amoco.ui.render import Token
+from amoco.ui.views import View
 from amoco.logger import Log
 
 logger = Log(__name__)
@@ -23,13 +25,11 @@ logger.debug("loading module")
 
 
 def cmdcli_builder(srv):
-    import readline
     cmdcli = type("cmdcli", (cmdcli_core,), {})
     func = cmdcli.default
-    for cname,cdef in srv.cmds.items():
+    for cname, cdef in srv.cmds.items():
         setattr(cmdcli, "do_%s" % cname, func)
-        setattr(cmdcli, "help_%s" % cname,
-                   lambda x,m=cdef.__doc__: print(m))
+        setattr(cmdcli, "help_%s" % cname, lambda x, m=cdef.__doc__: print(m))
     s = cmdcli(srv)
     return s
 
@@ -41,7 +41,7 @@ class cmdcli_core(cmd.Cmd):
         cmd.Cmd.__init__(self, completekey=conf.UI.completekey)
         self.srv = srv
         prompt = [(Token.Mnemonic, "amoco"), (Token.Literal, "> ")]
-        self.prompt = highlight(prompt)
+        self.prompt = View.engine.highlight(prompt)
 
     def precmd(self, line):
         if (self.srv._srv is None) or self.srv._srv.is_alive():
@@ -75,7 +75,7 @@ class cmdcli_core(cmd.Cmd):
             # otherwise, the server is just an object in the current
             # thread, so we call the command directly and put the
             # return code in outs queue:
-            res = self.srv._do_cmd(0,line)
+            res = self.srv._do_cmd(0, line)
             time.sleep(0.1)
             self.srv.outs.put(res)
         # when outs queue receives server's response, it means
@@ -84,6 +84,7 @@ class cmdcli_core(cmd.Cmd):
             try:
                 print(self.srv.msgs.get_nowait())
             except Exception:
+                # just loop if get_nowait fails
                 pass
         # get the return code
         res = self.srv.outs.get()

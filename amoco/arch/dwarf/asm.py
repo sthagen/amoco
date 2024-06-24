@@ -4,7 +4,9 @@
 # Copyright (C) 2019 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.arch.dwarf.env import *
+from amoco.arch.dwarf.env import sp, op_ptr, stack_elt, WORD
+from amoco.cas.expressions import mem, tst
+
 
 # ------------------------------------------------------------------------------
 # low level functions :
@@ -157,7 +159,7 @@ def i_DW_OP_abs(i, fmap):
 
 
 @__pc
-def i_DW_OP_abs(i, fmap):
+def i_DW_OP_neg(i, fmap):
     x = _pop_(fmap)
     _push_(fmap, -x)
 

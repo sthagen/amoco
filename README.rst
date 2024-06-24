@@ -1,5 +1,5 @@
 =====
-Amoco
+amoco
 =====
 
 .. image:: http://readthedocs.org/projects/amoco/badge/?version=latest
@@ -9,17 +9,15 @@ Amoco
 +-----------+--------------------------------------------------+
 | Status:   | Under Development                                |
 +-----------+--------------------------------------------------+
-| Location: | https://github.com/bdcht/amoco                   |
-+-----------+--------------------------------------------------+
 | Version:  | 2.9 (pre-3.0)                                    |
 +-----------+--------------------------------------------------+
-|  Doc:     | http://amoco.readthedocs.io/en/latest/index.html |
+| Doc:      | http://amoco.readthedocs.io/en/latest/index.html |
 +-----------+--------------------------------------------------+
 
 Description
 ===========
 
-Amoco is a python (>=3.8) package dedicated to symbolic analysis of binaries.
+Amoco is a python package dedicated to symbolic analysis of binaries.
 
 It features:
 
@@ -51,8 +49,8 @@ merged from develop branch or to be more thoroughly implemented.
 User documentation and API can be found at
 `http://amoco.readthedocs.io/en/latest/index.html`
 
-.. image:: https://github.com/bdcht/amoco/blob/release/doc/gui_load.png
-   :width: 800
+.. image:: doc/amo_emu_inherit.png
+   :width: 100%
 
 Todo
 ====
@@ -87,6 +85,19 @@ Please see `LICENSE`_.
 Changelog
 =========
 
+- `v2.9.11`_
+
+  * change default ui term engine from pygments to rich
+  * add EmuData orm object to save the emulator state
+  * add save/restore commands in emul ui
+  * implement callstack logic
+  * add callstack frame in emul ui
+  * add debug command in emul ui
+  * add StructView class for structs pretty printing
+  * fix x86 mmu_cache logic (flush & misses)
+  * change default action from codeql to ruff
+  * refactor code based on ruff checks
+
 - `v2.9.10`_
 
   * x86: add support for real mode execution
@@ -98,7 +109,7 @@ Changelog
   * add tracepoint method in emul class
   * add support for PE resources
   * improve amoco app load/emul commands
-  * add set,display,nexti,until in emul ui.
+  * add set,display,nexti,until in emul ui
 
 - `v2.9.9`_
 
@@ -408,35 +419,36 @@ Changelog
 .. _ply: http://www.dabeaz.com/ply/
 .. _sqlalchemy: http://www.sqlalchemy.org
 .. _QDarkStyleSheet: https://github.com/ColinDuquesnoy/QDarkStyleSheet
-.. _LICENSE: https://github.com/bdcht/amoco/blob/release/LICENSE
-.. _v2.9.10: https://github.com/bdcht/amoco/releases/tag/v2.9.10
-.. _v2.9.9: https://github.com/bdcht/amoco/releases/tag/v2.9.9
-.. _v2.9.8: https://github.com/bdcht/amoco/releases/tag/v2.9.8
-.. _v2.9.7: https://github.com/bdcht/amoco/releases/tag/v2.9.7
-.. _v2.9.6: https://github.com/bdcht/amoco/releases/tag/v2.9.6
-.. _v2.9.5: https://github.com/bdcht/amoco/releases/tag/v2.9.5
-.. _v2.9.4: https://github.com/bdcht/amoco/releases/tag/v2.9.4
-.. _v2.9.3: https://github.com/bdcht/amoco/releases/tag/v2.9.3
-.. _v2.9.2: https://github.com/bdcht/amoco/releases/tag/v2.9.2
-.. _v2.9.1: https://github.com/bdcht/amoco/releases/tag/v2.9.1
-.. _v2.9.0: https://github.com/bdcht/amoco/releases/tag/v2.9.0
-.. _v2.6.3: https://github.com/bdcht/amoco/releases/tag/v2.6.3
-.. _v2.6.2: https://github.com/bdcht/amoco/releases/tag/v2.6.2
-.. _v2.6.1: https://github.com/bdcht/amoco/releases/tag/v2.6.1
-.. _v2.6.0: https://github.com/bdcht/amoco/releases/tag/v2.6.0
-.. _v2.5.3: https://github.com/bdcht/amoco/releases/tag/v2.5.3
-.. _v2.5.2: https://github.com/bdcht/amoco/releases/tag/v2.5.2
-.. _v2.5.1: https://github.com/bdcht/amoco/releases/tag/v2.5.1
-.. _v2.5.0: https://github.com/bdcht/amoco/releases/tag/v2.5.0
-.. _v2.4.6: https://github.com/bdcht/amoco/releases/tag/v2.4.6
-.. _v2.4.5: https://github.com/bdcht/amoco/releases/tag/v2.4.5
-.. _v2.4.4: https://github.com/bdcht/amoco/releases/tag/v2.4.4
-.. _v2.4.3: https://github.com/bdcht/amoco/releases/tag/v2.4.3
-.. _v2.4.2: https://github.com/bdcht/amoco/releases/tag/v2.4.2
-.. _v2.4.1: https://github.com/bdcht/amoco/releases/tag/v2.4.1
-.. _v2.4.0: https://github.com/bdcht/amoco/releases/tag/v2.4.0
-.. _v2.3.5: https://github.com/bdcht/amoco/releases/tag/v2.3.5
-.. _v2.3.4: https://github.com/bdcht/amoco/releases/tag/v2.3.4
-.. _v2.3.3: https://github.com/bdcht/amoco/releases/tag/v2.3.3
-.. _v2.3.2: https://github.com/bdcht/amoco/releases/tag/v2.3.2
-.. _v2.3.1: https://github.com/bdcht/amoco/releases/tag/v2.3.1
+.. _LICENSE: /../../release/LICENSE
+.. _v2.9.11: /../../releases/tag/v2.9.11
+.. _v2.9.10: /../../releases/tag/v2.9.10
+.. _v2.9.9: /../../releases/tag/v2.9.9
+.. _v2.9.8: /../../releases/tag/v2.9.8
+.. _v2.9.7: /../../releases/tag/v2.9.7
+.. _v2.9.6: /../../releases/tag/v2.9.6
+.. _v2.9.5: /../../releases/tag/v2.9.5
+.. _v2.9.4: /../../releases/tag/v2.9.4
+.. _v2.9.3: /../../releases/tag/v2.9.3
+.. _v2.9.2: /../../releases/tag/v2.9.2
+.. _v2.9.1: /../../releases/tag/v2.9.1
+.. _v2.9.0: /../../releases/tag/v2.9.0
+.. _v2.6.3: /../../releases/tag/v2.6.3
+.. _v2.6.2: /../../releases/tag/v2.6.2
+.. _v2.6.1: /../../releases/tag/v2.6.1
+.. _v2.6.0: /../../releases/tag/v2.6.0
+.. _v2.5.3: /../../releases/tag/v2.5.3
+.. _v2.5.2: /../../releases/tag/v2.5.2
+.. _v2.5.1: /../../releases/tag/v2.5.1
+.. _v2.5.0: /../../releases/tag/v2.5.0
+.. _v2.4.6: /../../releases/tag/v2.4.6
+.. _v2.4.5: /../../releases/tag/v2.4.5
+.. _v2.4.4: /../../releases/tag/v2.4.4
+.. _v2.4.3: /../../releases/tag/v2.4.3
+.. _v2.4.2: /../../releases/tag/v2.4.2
+.. _v2.4.1: /../../releases/tag/v2.4.1
+.. _v2.4.0: /../../releases/tag/v2.4.0
+.. _v2.3.5: /../../releases/tag/v2.3.5
+.. _v2.3.4: /../../releases/tag/v2.3.4
+.. _v2.3.3: /../../releases/tag/v2.3.3
+.. _v2.3.2: /../../releases/tag/v2.3.2
+.. _v2.3.1: /../../releases/tag/v2.3.1

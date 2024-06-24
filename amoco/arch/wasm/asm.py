@@ -4,7 +4,9 @@
 # Copyright (C) 2021 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.arch.wasm.env import *
+from amoco.arch.wasm.env import sp, stack_elt, op_ptr
+from amoco.arch.wasm.env import WORD, mem, tst
+
 
 # ------------------------------------------------------------------------------
 # low level functions :
@@ -154,12 +156,6 @@ def i_DW_OP_abs(i, fmap):
     x = _pop_(fmap)
     result = tst(x[WORD - 1 : WORD] == 1, -x, x)
     _push_(fmap, result)
-
-
-@__pc
-def i_DW_OP_abs(i, fmap):
-    x = _pop_(fmap)
-    _push_(fmap, -x)
 
 
 @__pc

@@ -26,6 +26,7 @@ from amoco.system.memory import MemoryZone
 from collections import defaultdict
 from amoco.code import _code_misc_default
 
+
 # ------------------------------------------------------------------------------
 class node(Vertex):
     """A node is a graph vertex that embeds a :mod:`code` object.
@@ -77,8 +78,7 @@ class node(Vertex):
 
     @property
     def view(self):
-        """view : view property of the node's code object.
-        """
+        """view : view property of the node's code object."""
         return self.data.view
 
     @property
@@ -95,12 +95,11 @@ class node(Vertex):
             nl = self.data.cut(address)
             self._map = None
             return nl
+        logger.warning("cut: not a block")
+        return None
 
     def __repr__(self):
         return "<%s [%s] at 0x%x>" % (self.__class__.__name__, self.name, id(self))
-
-    def __cmp__(self, n):
-        return cmp(hash(self.data), hash(n.data))
 
     def __hash__(self):
         return id(self)
@@ -172,9 +171,6 @@ class link(Edge):
         n0 = self.v[0].name
         n1 = self.v[1].name
         return "%s -> %s" % (n0, n1)
-
-    def __cmp__(self, e):
-        return cmp(hash(self), hash(e))
 
     def __eq__(self, e):
         return hash(self) == hash(e)

@@ -4,9 +4,10 @@
 # Copyright (C) 2013 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
+from .env import pc, sp, cf, zf, vf, nf, COND
+from amoco.cas.expressions import bit0, mem, composer, tst
 
-from amoco.cas.utils import *
+from amoco.cas.utils import AddWithCarry, RORWithCarry
 
 
 def autoinc(i, fmap):
@@ -101,7 +102,7 @@ def i_AND(i, fmap):
 def i_XOR(i, fmap):
     fmap[pc] = fmap[pc] + i.length
     src, dst = i.operands
-    fmap[dst] = fmap(src ^ dst)
+    fmap[dst] = result = fmap(src ^ dst)
     fmap[nf] = result[dst.size - 1 : dst.size]
     fmap[zf] = result == 0
     fmap[cf] = ~fmap(zf)

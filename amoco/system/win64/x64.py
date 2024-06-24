@@ -4,10 +4,9 @@
 # Copyright (C) 2006-2019 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.pe import *
 from amoco.system.core import CoreExec, DefineStub
-from amoco.code import tag
-import amoco.arch.x64.cpu_x64 as cpu
+from amoco.system.structs import Consts
+from amoco.arch.x64.cpu_x64 import cpu
 
 # ------------------------------------------------------------------------------
 
@@ -66,7 +65,7 @@ class OS(object):
         # create text and data segments according to elf header:
         for s in pe.sections:
             ms = pe.loadsegment(s, pe.Opt.SectionAlignment)
-            if ms != None:
+            if ms is not None:
                 vaddr, data = ms.popitem()
                 p.state.mmap.write(vaddr, data)
         # init task state:
@@ -121,6 +120,7 @@ class Task(CoreExec):
 
 # ----------------------------------------------------------------------------
 
+
 @DefineStub(OS, "*", default=True)
 def pop_eip(m, **kargs):
     cpu.pop(m, cpu.rip)
@@ -129,5 +129,6 @@ def pop_eip(m, **kargs):
 @DefineStub(OS, "KERNEL32.dll::ExitProcess")
 def ExitProcess(m, **kargs):
     m[cpu.rip] = cpu.top(64)
+
 
 # ----------------------------------------------------------------------------

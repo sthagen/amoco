@@ -5,7 +5,11 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc, cst, top, bit1
+from amoco.cas.expressions import is_reg_flags, is_reg_stack, is_reg_pc
+
+# import all (other) expressions as interface
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # "ARM Architecture Reference Manual ARMv8, for ARMv8-A architecture profile, Errata markup (DDI0487A.a_errata_2013_Q3)
@@ -89,14 +93,36 @@ pc = reg("PC", 64)
 
 pstate = reg("pstate", 64)  # in current program status register
 
-N = slc(pstate, 0, 1, ref="N")  # negative result from ALU
-Z = slc(pstate, 1, 1, ref="Z")  # zero flag
-C = slc(pstate, 2, 1, ref="C")  # carry flag
-V = slc(pstate, 3, 1, ref="V")  # overflow flag
+N = slc(pstate, 31, 1, ref="N")   # negative result from ALU
+Z = slc(pstate, 30, 1, ref="Z")   # zero flag
+C = slc(pstate, 29, 1, ref="C")   # carry flag
+V = slc(pstate, 28, 1, ref="V")   # overflow flag
+
+SS    = slc(pstate, 21, 1, ref="SS") # software step
+IL    = slc(pstate, 20, 1, ref="IL") # illegal execution state
+SPSel = slc(pstate, 12, 1, ref="SPSel")
+
+D = slc(pstate,  9, 1, ref="D")   # debug mask
+A = slc(pstate,  8, 1, ref="A")   # SError mask
+I = slc(pstate,  7, 1, ref="I")   # IRQ mask
+F = slc(pstate,  6, 1, ref="F")   # FIQ mask
+M = slc(pstate,  0, 5, ref="M")   # execution mode
 
 is_reg_flags(pstate)
 is_reg_stack(sp)
 is_reg_pc(pc)
+
+#exception-specific special regs:
+sp_el0 = reg("SP_EL0", 64)
+sp_el1 = reg("SP_EL1", 64)
+sp_el2 = reg("SP_EL2", 64)
+sp_el3 = reg("SP_EL3", 64)
+elr_el1 = reg("ELR_EL1", 64)
+elr_el2 = reg("ELR_EL2", 64)
+elr_el3 = reg("ELR_EL3", 64)
+spsr_el1 = reg("SPSR_EL1", 64)
+spsr_el2 = reg("SPSR_EL2", 64)
+spsr_el3 = reg("SPSR_EL3", 64)
 
 Xregs = [
     r0,
@@ -167,10 +193,6 @@ Wregs = [
     wsp,
 ]
 
-SPSel = slc(pstate, 12, 1, ref="SPSel")
-DAIFSet = slc(pstate, 4, 4, ref="DAIFSet")
-DAIFClr = slc(pstate, 4, 4, ref="DAIFClr")
-
 CONDITION_EQ = 0x0  # ==
 CONDITION_NE = 0x1  # !=
 CONDITION_CS = 0x2  # >= (unsigned)
@@ -216,7 +238,8 @@ internals = {  # states MUST be in a mutable object !
 }
 
 # SIMD and VFP (floating point) extensions:
-# NOT IMPLEMENTED
+
+Vregs = [reg("V%d"%i,128) for i in range(32)]
 
 # Coprocessor (CPxx) support:
 # NOT IMPLEMENTED

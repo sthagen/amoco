@@ -5,7 +5,7 @@
 # published under GPLv2 license
 
 from amoco.system.core import CoreExec
-import amoco.arch.superh.cpu_sh2 as cpu
+from amoco.arch.superh.cpu_sh2 import cpu
 
 HIGH_SPEED_PAGE = 0x4000
 

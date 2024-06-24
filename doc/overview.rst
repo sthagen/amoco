@@ -8,13 +8,17 @@ Amoco is composed of 5 sub-packages
   instructions' semantics for several CPUs, microcontrollers or
   "virtual machines":
 
-  - x86, x64
+  - x86 (with segmentation and paging)
+  - x64 (amd64)
   - armv7, armv8 (aarch64)
   - sparc (v8)
+  - tricore
   - MIPS (R3000)
   - riscv
+  - ppc32
   - msp430
   - avr
+  - w65c02
   - pic/F46K22
   - v850
   - sh2, sh4

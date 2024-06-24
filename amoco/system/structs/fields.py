@@ -7,10 +7,11 @@
 import struct
 
 from amoco.logger import Log
+
 logger = Log(__name__)
 logger.debug("loading module")
 
-from .core import StructCore,Alltypes
+from .core import StructCore, Alltypes
 from .utils import read_leb128, write_uleb128, write_sleb128
 
 # ------------------------------------------------------------------------------
@@ -48,7 +49,7 @@ class Field(object):
 
     def __init__(self, ftype, fcount=0, fname=None, forder=None, falign=1, fcomment=""):
         self.__type = None
-        if isinstance(ftype,type):
+        if isinstance(ftype, type):
             self.__type = ftype
             self.typename = ftype.__name__
         else:
@@ -65,13 +66,13 @@ class Field(object):
         if self.__type is None:
             try:
                 cls = Alltypes[self.typename]
-            except (KeyError):
-                logger.warning("type %s is not defined"%self.typename)
+            except KeyError:
+                logger.warning("type %s is not defined" % self.typename)
             else:
                 self.__type = cls
         return self.__type
 
-    def format(self):
+    def format(self, psize=0):
         """
         The format of a regular Field (ie. not derived from RawField) is always returned
         as matching a finite-length string.
@@ -79,7 +80,7 @@ class Field(object):
         sz = self.size()
         return "%ds" % sz
 
-    def size(self,psize=0):
+    def size(self, psize=0):
         # if the field belongs to an instance and was unpacked already,
         # we return the actual byte-length of the resulting struct:
         try:
@@ -89,7 +90,7 @@ class Field(object):
         # otherwise we return the natural size of the field's type,
         # which may be infinite if the type contains a VarField...
         try:
-            sz =  self.type.size(psize)
+            sz = self.type.size(psize)
         except AttributeError:
             return float("Infinity")
         else:
@@ -121,7 +122,7 @@ class Field(object):
         else:
             return False
 
-    def align_value(self,psize=0):
+    def align_value(self, psize=0):
         if self._align_value:
             return self._align_value
         if self.type:
@@ -140,19 +141,19 @@ class Field(object):
     def unpack(self, data, offset=0, psize=0):
         "returns a (sequence of count) element(s) of its self.type"
         blob = self.type().unpack(data, offset, psize)
-        if self.count>0:
+        if self.count > 0:
             # since we are not a RawField, blob is normally a StructCore instance,
             # but it can be a python raw type in case self is a typedef.
             # Thus, we need to declare a 'sizeof' operator to correctly compute
             # the size of each unpacked blob:
-            if isinstance(blob,(bytes,StructCore)):
+            if isinstance(blob, (bytes, StructCore)):
                 sizeof = lambda b: len(b)
             else:
                 sz = self.type.size(psize)
-                if sz<float('Infinity'):
+                if sz < float("Infinity"):
                     sizeof = lambda b: sz
                 else:
-                    sizeof = lambda b: sum((x.size(psize) for x in b),0)
+                    sizeof = lambda b: sum((x.size(psize) for x in b), 0)
             # now lets unpack the rest of the series:
             sz = sizeof(blob)
             count = self.count
@@ -171,10 +172,10 @@ class Field(object):
 
     def pack(self, value, psize=0):
         if self.count > 0:
-            return b"".join([self.type().pack(v,psize) for v in value])
-        return self.type.pack(value,psize)
+            return b"".join([self.type().pack(v, psize) for v in value])
+        return self.type.pack(value, psize)
 
-    def copy(self,obj=None):
+    def copy(self, obj=None):
         cls = self.__class__
         newf = cls(
             self.typename,
@@ -193,7 +194,7 @@ class Field(object):
     def __repr__(self):
         try:
             fmt = self.type.format()
-        except (AttributeError,KeyError):
+        except (AttributeError, KeyError):
             fmt = "?"
         r = "<Field %s {%s}" % (self.name, fmt)
         if self.count > 0:
@@ -218,21 +219,21 @@ class RawField(Field):
     def type(self):
         return None
 
-    def format(self):
+    def format(self, psize=0):
         fmt = self.typename
         if self.count == 0:
             return fmt
         sz = self.count
         return "%d%s" % (sz, fmt)
 
-    def align_value(self,psize=0):
+    def align_value(self, psize=0):
         tn = self.typename
-        if psize and (tn in ('P','L','l')):
-            tn = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,tn)
+        if psize and (tn in ("P", "L", "l")):
+            tn = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, tn)
         sz = struct.calcsize(tn)
         return sz
 
-    def size(self,psize=0):
+    def size(self, psize=0):
         sz = self.align_value(psize)
         if self.count > 0:
             sz = sz * self.count
@@ -241,11 +242,10 @@ class RawField(Field):
     def unpack(self, data, offset=0, psize=0):
         pfx = "%d" % self.count if self.count > 0 else ""
         tn = self.typename
-        if psize and tn in ('P','L','l'):
-            tn = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,tn)
+        if psize and tn in ("P", "L", "l"):
+            tn = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, tn)
         res = struct.unpack(
-            self.order + pfx + tn,
-            data[offset : offset + self.size(psize)]
+            self.order + pfx + tn, data[offset : offset + self.size(psize)]
         )
         if self.count == 0 or tn == "s":
             return res[0]
@@ -255,12 +255,12 @@ class RawField(Field):
 
     def pack(self, value, psize=0):
         fmt = self.typename
-        if psize and fmt in ('P','L','l'):
-            fmt = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,fmt)
+        if psize and fmt in ("P", "L", "l"):
+            fmt = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, fmt)
         pfx = "%d" % self.count if self.count > 0 else ""
         order = self.ORDER if hasattr(self, "ORDER") else self.order
-        if fmt=='c' and isinstance(value,bytes):
-            fmt = 's'
+        if fmt == "c" and isinstance(value, bytes):
+            fmt = "s"
         res = struct.pack(order + pfx + fmt, value)
         return res
 
@@ -295,33 +295,33 @@ class BitField(RawField):
     """
 
     def __init__(self, ftype, fcount=0, fname=None, forder=None, falign=1, fcomment=""):
-        super().__init__(ftype,0,"",forder,falign,fcomment)
+        super().__init__(ftype, 0, "", forder, falign, fcomment)
         self.subsizes = fcount or []
         # names of each splitted part is provided here:
         self.subnames = fname or []
         # other attributes are as usual...
 
     def unpack(self, data, offset=0, psize=0):
-        value = super().unpack(data,offset)
+        value = super().unpack(data, offset)
         D = {}
         l = 0
-        for name,sz in zip(self.subnames,self.subsizes):
-            mask  = (1<<sz)-1
-            D[name] = (value>>l)&mask
+        for name, sz in zip(self.subnames, self.subsizes):
+            mask = (1 << sz) - 1
+            D[name] = (value >> l) & mask
             l += sz
         return D
 
     def pack(self, D, psize=0):
         value = 0
         l = 0
-        for x,sz in zip(self.subnames,self.subsizes):
-            mask = (1<<sz)-1
-            v = (D[x]&mask)<<l
+        for x, sz in zip(self.subnames, self.subsizes):
+            mask = (1 << sz) - 1
+            v = (D[x] & mask) << l
             value |= v
             l += sz
-        return super().pack(value,psize)
+        return super().pack(value, psize)
 
-    def copy(self,obj=None):
+    def copy(self, obj=None):
         cls = self.__class__
         newf = cls(
             self.typename,
@@ -334,23 +334,23 @@ class BitField(RawField):
         newf.instance = obj
         return newf
 
-    def concat(self,other):
+    def concat(self, other):
         oss = other.subsizes[:]
         osn = other.subnames[:]
-        while oss and (self.size()*8>=sum(self.subsizes,oss[0])):
+        while oss and (self.size() * 8 >= sum(self.subsizes, oss[0])):
             self.subsizes.append(oss.pop(0))
             if osn:
                 self.subnames.append(osn.pop(0))
         if oss or osn:
-            logger.debug("BitField size too small in %s"%self)
+            logger.debug("BitField size too small in %s" % self)
             raise TypeError
 
     def __repr__(self):
-        fmt = self.typename
-        pre = " "*7
-        f = [pre+"%s:%s"%(n,s) for n,s in zip(self.subnames,self.subsizes)]
-        s = '\n'.join(f).strip()
+        pre = " " * 7
+        f = [pre + "%s:%s" % (n, s) for n, s in zip(self.subnames, self.subsizes)]
+        s = "\n".join(f).strip()
         return "<Field %s>" % s
+
 
 class BitFieldEx(Field):
     """
@@ -359,33 +359,33 @@ class BitFieldEx(Field):
     """
 
     def __init__(self, ftype, fcount=0, fname=None, forder=None, falign=1, fcomment=""):
-        super().__init__(ftype,0,"",forder,falign,fcomment)
+        super().__init__(ftype, 0, "", forder, falign, fcomment)
         self.subsizes = fcount or []
         # names of each splitted part is provided here:
         self.subnames = fname or []
         # other attributes are as usual...
 
     def unpack(self, data, offset=0, psize=0):
-        value = super().unpack(data,offset)
+        value = super().unpack(data, offset)
         D = {}
         l = 0
-        for name,sz in zip(self.subnames,self.subsizes):
-            mask  = (1<<sz)-1
-            D[name] = (value>>l)&mask
+        for name, sz in zip(self.subnames, self.subsizes):
+            mask = (1 << sz) - 1
+            D[name] = (value >> l) & mask
             l += sz
         return D
 
     def pack(self, D, psize=0):
         value = 0
         l = 0
-        for x,sz in zip(self.subnames,self.subsizes):
-            mask = (1<<sz)-1
-            v = (D[x]&mask)<<l
+        for x, sz in zip(self.subnames, self.subsizes):
+            mask = (1 << sz) - 1
+            v = (D[x] & mask) << l
             value |= v
             l += sz
-        return super().pack(value,psize)
+        return super().pack(value, psize)
 
-    def copy(self,obj=None):
+    def copy(self, obj=None):
         cls = self.__class__
         newf = cls(
             self.typename,
@@ -399,9 +399,9 @@ class BitFieldEx(Field):
         return newf
 
     def __repr__(self):
-        fmt = self.typename
-        r = "<Field %s>" % str(["%s:%s"%(n,s) for n,s in zip(self.subnames,
-                                                             self.subsizes)])
+        r = "<Field %s>" % str(
+            ["%s:%s" % (n, s) for n, s in zip(self.subnames, self.subsizes)]
+        )
         return r
 
 
@@ -418,7 +418,7 @@ class VarField(RawField):
     The default terminate condition is to match the null byte.
     """
 
-    def format(self):
+    def format(self, psize=0):
         fmt = self.typename
         cnt = self.count if hasattr(self, "_sz") else "#"
         return "%s%s" % (cnt, fmt)
@@ -431,14 +431,14 @@ class VarField(RawField):
 
     def unpack(self, data, offset=0, psize=0):
         tn = self.typename
-        if psize and tn=='P':
-            tn = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,'P')
+        if psize and tn == "P":
+            tn = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, "P")
         sz1 = struct.calcsize(tn)
         el1 = data[offset : offset + sz1]
         el1 = struct.unpack(self.order + self.typename, el1)[0]
         res = [el1]
         pos = offset + sz1
-        while not self.terminate(el1,field=self):
+        while not self.terminate(el1, field=self):
             el1 = data[pos : pos + sz1]
             el1 = struct.unpack(self.order + self.typename, el1)[0]
             res.append(el1)
@@ -453,12 +453,12 @@ class VarField(RawField):
 
     def pack(self, value, psize=0):
         tn = self.typename
-        if psize and tn=='P':
-            tn = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,'P')
+        if psize and tn == "P":
+            tn = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, "P")
         res = [struct.pack(self.order + tn, v) for v in value]
         return b"".join(res)
 
-    def copy(self,obj=None):
+    def copy(self, obj=None):
         newf = super().copy(obj)
         if hasattr(self, "_terminate"):
             newf._terminate = self._terminate
@@ -479,8 +479,8 @@ class VarField(RawField):
     def terminate(self, val, field=None):
         if hasattr(self, "_terminate"):
             f = self._terminate
-            return f(val,field)
-        return self.__default_terminate(val,field)
+            return f(val, field)
+        return self.__default_terminate(val, field)
 
     def set_terminate(self, func):
         self._terminate = func
@@ -496,8 +496,9 @@ class Leb128Field(VarField):
     """
 
     def __init__(self, ftype, fcount=0, fname=None, forder=None, falign=1, fcomment=""):
+        super().__init__(ftype, fcount, fname, forder, falign, fcomment)
         self.__type = None
-        self.typename = 'c'
+        self.typename = "c"
         self.sign = -1 if ftype in "bhil" else 1
         self.N = struct.calcsize(ftype)
         self.type_private = False
@@ -509,22 +510,22 @@ class Leb128Field(VarField):
         self._sz = None
         self.instance = None
 
-    def format(self):
+    def format(self, psize=0):
         if self._sz is None:
             return "#c"
         else:
-            return "%dc"%self._sz
+            return "%dc" % self._sz
 
-    def _terminate(self,b,f):
-        return b&0x80==0
+    def _terminate(self, b, f):
+        return b & 0x80 == 0
 
-    def unpack(self,data,offset=0, psize=0):
-        val, sz = read_leb128(data,self.sign,offset)
+    def unpack(self, data, offset=0, psize=0):
+        val, sz = read_leb128(data, self.sign, offset)
         self._sz = sz
         return val
 
     def pack(self, value, psize=0):
-        if self.sign==1:
+        if self.sign == 1:
             return write_uleb128(value)
         else:
             return write_sleb128(value)
@@ -545,19 +546,19 @@ class CntField(RawField):
 
     def format(self, psize=0):
         fmt = self.typename
-        if psize and fmt=='P':
-            fmt = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,'P')
+        if psize and fmt == "P":
+            fmt = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, "P")
         # fcount is used as a placeholder for the initial fcount value
         # that correspond to the formatting of the counter. For example
         # for a CntField defined from s*~I, the typename is 's' and the
         # count is initially set to '~I' to indicate that the counter is
         # to be decoded as an uint32 from first 4 bytes.
         if hasattr(self, "fcount"):
-            cnt = "%s"%self.fcount[1:]
-            if self.count==0:
+            cnt = "%s" % self.fcount[1:]
+            if self.count == 0:
                 return cnt
             else:
-                cnt += "%d"%self.count
+                cnt += "%d" % self.count
         else:
             cnt = "#"
         return "%s%s" % (cnt, fmt)
@@ -574,7 +575,7 @@ class CntField(RawField):
             # the count to its initial form.
             self.count = self.fcount
         # decode the actual count:
-        sz = struct.calcsize(self.count[1:]) #(skip '~')
+        sz = struct.calcsize(self.count[1:])  # (skip '~')
         nb = data[offset : offset + sz]
         nb = struct.unpack(self.order + self.count[1:], nb)[0]
         # save the initial count form
@@ -582,12 +583,12 @@ class CntField(RawField):
         # ...before overwritting with actual value:
         self.count = nb
         if self.count == 0:
-            res = [0,b""]
+            res = [0, b""]
         else:
             # now fully unpack the whole field:
             res = struct.unpack(
                 self.order + self.format(psize),
-                data[offset : offset + self.size(psize)]
+                data[offset : offset + self.size(psize)],
             )
         if self.typename == "s":
             return res[1]
@@ -598,15 +599,13 @@ class CntField(RawField):
         return res[1:]
 
     def pack(self, value, psize=0):
-        if not hasattr(self,"fcount"):
+        if not hasattr(self, "fcount"):
             self.fcount = self.count
         self.count = len(value)
-        if isinstance(value,list):
-            res = struct.pack(self.order + self.format(psize),
-                              self.count, *value)
+        if isinstance(value, list):
+            res = struct.pack(self.order + self.format(psize), self.count, *value)
         else:
-            res = struct.pack(self.order + self.format(psize),
-                              self.count, value)
+            res = struct.pack(self.order + self.format(psize), self.count, value)
         return res
 
     def __repr__(self):
@@ -627,13 +626,13 @@ class BindedField(CntField):
 
     def format(self, psize=0):
         fmt = self.typename
-        if psize and fmt=='P':
-            fmt = {4:'I',8:'Q',32:'I',64:'Q'}.get(psize,'P')
+        if psize and fmt == "P":
+            fmt = {4: "I", 8: "Q", 32: "I", 64: "Q"}.get(psize, "P")
         if hasattr(self, "fcount"):
             cnt = self.count
         else:
             cnt = "#"
-        if self.count==0:
+        if self.count == 0:
             return ""
         return "%s%s" % (cnt, fmt)
 
@@ -649,12 +648,11 @@ class BindedField(CntField):
         self.fcount = self.count
         boundname = self.count[1:]
         self.count = self.instance[boundname]
-        if self.count==0:
+        if self.count == 0:
             return None
         res = struct.unpack(
             self.order + self.format(psize), data[offset : offset + self.size(psize)]
         )
-        if self.typename=="s":
+        if self.typename == "s":
             return res[0]
         return res
-

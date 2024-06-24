@@ -52,10 +52,7 @@ def createdb(url=None):
     if has_sql:
         logflag = conf.DB.log
         engine = sql.create_engine(
-            url,
-            echo=logflag,
-            echo_pool=logflag,
-            logging_name=__name__
+            url, echo=logflag, echo_pool=logflag, logging_name=__name__
         )
         Session.configure(bind=engine)
         Case.metadata.create_all(bind=engine)
@@ -251,14 +248,23 @@ if has_sql:
         __tablename__ = "emu_data"
         id = sql.Column(sql.Integer, primary_key=True)
         name = sql.Column(sql.String, nullable=False)
+        cpuinternals = sql.Column(sql.PickleType)
         cur = sql.Column(sql.String)
         state = orm.deferred(sql.Column(sql.PickleType))
+        watch = orm.deferred(sql.Column(sql.PickleType))
+        hooks = orm.deferred(sql.Column(sql.PickleType))
 
         def __init__(self, e, name=None):
             self.name = name or repr(e.task)
-            cur = e.task.state(e.task.cpu.PC())
-            self.cur = "{} <- {}".format(e.task.cpu.PC(), cur)
-            self.state = pickle.dumps(e.task.state)
+            self.cpuinternals = e.task.cpu.internals
+            cur = e.task.state(e.task.cpu.getPC())
+            self.cur = "{} <- {}".format(e.task.cpu.getPC(), cur)
+            self.state = e.task.state
+            self.watch = e.watch
+            hooks = {}
+            for h in e.hooks:
+                hooks[h.__doc__] = h.__defaults__
+            self.hooks = hooks
 
         def __repr__(self):
             s = (self.id, self.name, self.cur)

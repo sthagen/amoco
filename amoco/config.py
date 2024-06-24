@@ -42,11 +42,13 @@ Attributes:
 
         - 'UI' which deals with some user-interface pretty-printing options:
 
-            - 'formatter' one of 'Null' (default), 'Terminal', "Terminal256', 'TerminalDark', 'TerminalLight', 'Html'
-            - 'graphics' one of 'term' (default), 'qt' or 'gtk'
+            - 'formatter' one of 'Null', 'TerminalDark' (default), 'TerminalLight'
+            - 'graphics' one of 'rich' (default), 'textual, 'qt' or 'gtk'
             - 'console' one of 'python' (default), or 'ipython'
             - 'unicode' will use unicode symbols for drawing lines and icons if True
             - 'qstylesheet' filename of a Qt Stylesheet or '' (default)
+            - 'richtheme' filename of a Rich theme file or '' (default)
+            - 'tcss' filename of a Textual Stylesheet or '' (default)
 
         - 'Server' which deals with amoco's server parameters:
 
@@ -65,9 +67,8 @@ Attributes:
             - 'format_x64' one of 'Intel' (default), 'ATT'
 """
 
-
 import os
-from traitlets.config import Configurable,PyFileConfigLoader
+from traitlets.config import Configurable, PyFileConfigLoader
 from traitlets import Integer, Unicode, Bool, observe
 
 # -----------------------
@@ -81,6 +82,7 @@ class DB(Configurable):
         url (str): defaults to sqlite:// (in-memory database).
         log (Bool): If True, merges database's logs into amoco loggers.
     """
+
     url = Unicode("sqlite://", config=True)
     log = Bool(False, config=True)
 
@@ -100,6 +102,7 @@ class Code(Configurable):
                     emulator's code frame view.
         lines (int): max number of displayed instruction (default=11).
     """
+
     helper = Bool(True, config=True)
     header = Bool(True, config=True)
     footer = Bool(True, config=True)
@@ -122,6 +125,7 @@ class Cas(Configurable):
                            expressions (pointers) are **never** aliased.
         memtrace (Bool): keep memory writes in mapper in addition to MemoryMap (default).
     """
+
     complexity = Integer(0, config=True)
     unicode = Bool(False, config=True)
     noaliasing = Bool(True, config=True)
@@ -141,9 +145,11 @@ class Log(Configurable):
         observers for Log traits are defined in the amoco.logger module
         (to avoid module cyclic imports.)
     """
+
     level = Unicode("INFO", config=True)
     filename = Unicode("", config=True)
     tempfile = Bool(False, config=True)
+
 
 class UI(Configurable):
     """
@@ -153,20 +159,23 @@ class UI(Configurable):
         formatter (str): pygments formatter for pretty printing. Defaults to Null,
                          but recommended to be set to 'Terminal256' if pygments
                          package is installed.
-        graphics (str):  rendering backend. Currently only 'term' is supported.
+        graphics (str):  rendering backend. Currently only 'rich' is supported.
         console (str): default python console, either 'python' (default) or 'ipython'.
         completekey (str): client key for command completion (Tab).
         cli (str): client frontend. Currently only 'cmdcli' is supported.
         unicode (Bool): use unicode icons (default to False)
         qstylesheet (str):  Qt stylesheet filename (default to "").
     """
-    formatter = Unicode("Null", config=True)
-    graphics = Unicode("term", config=True)
+
+    formatter = Unicode("TerminalDark", config=True)
+    graphics = Unicode("rich", config=True)
     console = Unicode("python", config=True)
     completekey = Unicode("tab", config=True)
     cli = Unicode("cmdcli", config=True)
     unicode = Bool(False, config=True)
     qstylesheet = Unicode("", config=True)
+    richtheme = Unicode("", config=True)
+    tcss = Unicode("", config=True)
 
 
 class Server(Configurable):
@@ -177,6 +186,7 @@ class Server(Configurable):
         wbsz (int): size of the shared buffer between server and its command threads.
         timeout (int): timeout for the servers' command threads.
     """
+
     wbsz = Integer(0x1000, config=True)
     timeout = Integer(600, config=True)
 
@@ -190,6 +200,7 @@ class Arch(Configurable):
         format_x86 (str): select disassembly flavor: Intel (default) vs. AT&T (att).
         format_x64 (str): select disassembly flavor: Intel (default) vs. AT&T (att).
     """
+
     assemble = Bool(False, config=True)
     format_x86 = Unicode("Intel", config=True)
 
@@ -218,6 +229,7 @@ class Emu(Configurable):
         stackdown (Bool): show the stack frame with top of stack at the bottom.
         safe (Bool): use mapper.safe_upate to change state *only* if no exception occurs.
     """
+
     hist = Integer(100, config=True)
     stacksize = Integer(256, config=True)
     stackdown = Bool(True, config=True)
@@ -234,10 +246,11 @@ class System(Configurable):
         nx (Bool): unused.
         romfile (Unicode): path to ROM file.
     """
+
     pagesize = Integer(4096, config=True)
     aslr = Bool(False, config=True)
     nx = Bool(False, config=True)
-    romfile = Unicode("apple2.rom",config=True)
+    romfile = Unicode("apple2.rom", config=True)
 
 
 class Config(object):
@@ -251,11 +264,11 @@ class Config(object):
         The Config object supports a print() method to display
         the entire configuration.
     """
+
     _locations = [".config/amoco/config", ".amoco/config", ".amocorc"]
     BANNER = "amoco (version 3.0)"
 
     def __init__(self, f=None):
-
         if f is not None:
             f = os.path.expanduser(f)
             self._locations = [f]
@@ -271,12 +284,12 @@ class Config(object):
                 break
         self.setup(c)
 
-    def load(self,f):
+    def load(self, f):
         f = os.path.expanduser(f)
         cl = PyFileConfigLoader(filename=f, path=(".", os.getenv("HOME")))
         self.setup(cl.load_config())
 
-    def setup(self,c=None):
+    def setup(self, c=None):
         self.UI = UI(config=c)
         self.DB = DB(config=c)
         self.Code = Code(config=c)
@@ -313,10 +326,10 @@ class Config(object):
 
 conf = Config()
 
-if ll:=os.getenv("AMOCO_LOG_LEVEL"):
+if ll := os.getenv("AMOCO_LOG_LEVEL"):
     conf.Log.level = ll
 
-from amoco.logger import Log as _LogClass #lgtm [py/unsafe-cyclic-import]
+from amoco.logger import Log as _LogClass  # lgtm [py/unsafe-cyclic-import]
 
 logger = _LogClass(__name__)
 logger.debug("loading module")

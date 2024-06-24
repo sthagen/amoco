@@ -7,15 +7,24 @@
 # spec_xxx files are providers for instruction objects.
 # These objects are wrapped and created by disasm.py.
 
-from amoco.arch.core import *
-from amoco.arch.arm.v7 import env
-from .utils import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_cpu_state,
+    type_unpredictable,
+)
+
+from . import env
+from .utils import ThumbExpandImm, DecodeShift, BadReg
+
+ISPECS = []
+
+# ruff: noqa: F811
 
 # ------------------------------------------------------
 # amoco THUMB2  instruction specs:
 # ------------------------------------------------------
-
-ISPECS = []
 
 
 @ispec("32[ 0 #imm3(3) Rd(4) #imm8(8) 11110 #i 0 0000 S Rn(4) ]", mnemonic="AND")
@@ -65,7 +74,7 @@ def A_default(obj, i, Rn, imm3, Rd, imm8):
     obj.d = env.regs[Rd]
     # TODO: manual says its a ZeroExtend here, but need to double check with gdb
     # cause its looks weird...
-    obj.imm32 = cst(int(i + imm3 + imm8, 2), 32)
+    obj.imm32 = env.cst(int(i + imm3 + imm8, 2), 32)
     obj.operands = [obj.d, obj.n, obj.imm32]
     if BadReg(Rd):
         obj.type = type_unpredictable
@@ -245,7 +254,7 @@ def A_default(obj):
 @ispec("32[ 1111 Rd(4) 1 011 Rm(4) 11111 010 1 001 rm(4) ]", mnemonic="REVSH")
 def A_default(obj, rm, Rd, Rm):
     assert rm == Rm
-    obj.d = env.regs[Rn]
+    obj.d = env.regs[Rd]
     obj.m = env.regs[Rm]
     if BadReg(Rd) or BadReg(Rm):
         raise InstructionError(obj)
@@ -532,7 +541,9 @@ def A_deref(obj, Rn, Rt, Rt2, Rd):
     obj.cond = env.CONDITION_AL
 
 
-@ispec("32[ Ra(4) Rd(4) 0000 Rm(4) 11111 0110 000 Rn(4) ]", mnemonic="MLA", setflags=False)
+@ispec(
+    "32[ Ra(4) Rd(4) 0000 Rm(4) 11111 0110 000 Rn(4) ]", mnemonic="MLA", setflags=False
+)
 @ispec("32[ Ra(4) Rd(4) 0001 Rm(4) 11111 0110 000 Rn(4) ]", mnemonic="MLS")
 def A_default(obj, Rn, Ra, Rd, Rm):
     obj.n = env.regs[Rn]

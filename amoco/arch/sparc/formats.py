@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
-from .utils import *
+from .env import pc, cst, g0, i7, o7
 from amoco.arch.core import Formatter
-from amoco.ui.render import highlight, Token
+from amoco.ui.render import Token
 from amoco.ui.render import TokenListJoin, LambdaTokenListJoin
 from amoco.ui.render import replace_mnemonic_token, replace_opn_token
+from amoco.ui.views import View
 
 
 def regs(i):
@@ -25,7 +25,7 @@ def address(a):
     l = reg_or_imm(a.l)[0][1]
     op = a.op.symbol
     r = reg_or_imm(a.r)[0][1]
-    return [(Token.Address, "%s%s%s"%(l, op, r))]
+    return [(Token.Address, "%s%s%s" % (l, op, r))]
 
 
 def deref(a):
@@ -34,12 +34,14 @@ def deref(a):
         seg = ""
     else:
         seg = a.seg
-    res = "[%s]%s"%(address(a.base+a.disp)[0][1],seg)
+    res = "[%s]%s" % (address(a.base + a.disp)[0][1], seg)
     return [(Token.Memory, res)]
+
 
 def mnemo(i):
     "returns a list of a single Mnemonic token"
     return [(Token.Mnemonic, "{i.mnemonic:<8}".format(i=i))]
+
 
 def mnemo_icc(i):
     "returns a list of a single Mnemonic token with condition code"
@@ -74,9 +76,9 @@ def reg_or_imm(x, t="%d"):
             hilo = ["%lo", x.x]
     # Other cases
     elif x._is_ext:
-        return [(Token.Address, "%s"%x.ref)]
+        return [(Token.Address, "%s" % x.ref)]
     elif x._is_reg:
-        return [(Token.Register, "%"+x.ref)]
+        return [(Token.Register, "%" + x.ref)]
     elif x._is_cst:
         return [(Token.Constant, t % x.value)]
     elif x._is_eqn:
@@ -91,7 +93,7 @@ def reg_or_imm(x, t="%d"):
     if hilo is None:
         return [(Token.Register, str(x))]
     else:
-        res = "%s(%s)"%(hilo[0],address(hilo[1])[0][1])
+        res = "%s(%s)" % (hilo[0], address(hilo[1])[0][1])
     return [(Token.Address, res)]
 
 
@@ -103,10 +105,10 @@ def label(i):
     if i.operands[0]._is_ext:
         return [(Token.Address, str(i.operands[0].ref))]
     if i.operands[0]._is_reg:
-        return [(Token.Register, "%%%s"%(i.operands[0].ref))]
+        return [(Token.Register, "%%%s" % (i.operands[0].ref))]
     if i.operands[0]._is_cst:
         offset = i.operands[0].signextend(32) * 4
-        target = i.misc["dst"] or (_pc+offset)
+        target = i.misc["dst"] or (_pc + offset)
         return [(Token.Address, str(target))]
     raise TypeError("operand type not supported")
 
@@ -130,51 +132,52 @@ format_arith = [
     ),
 ]
 format_xb = [mnemo_cond, label]
-format_call = [mnemo, lambda i: TokenListJoin(", ", label(i) +
-                                                    [(Token.Constant, "0")])]
+format_call = [mnemo, lambda i: TokenListJoin(", ", label(i) + [(Token.Constant, "0")])]
 format_jmpl = [
     mnemo,
     lambda i: TokenListJoin(", ", address(i.operands[0]) + regn(i, 1)),
 ]
 format_addr = [mnemo, lambda i: address(i.operands[0])]
-format_t = [lambda i: [(Token.Mnemonic, "{:<8}".format(CONDT[i.cond]))] +
-            reg_or_imm(i.operands[0])]
+format_t = [
+    lambda i: [(Token.Mnemonic, "{:<8}".format(CONDT[i.cond]))]
+    + reg_or_imm(i.operands[0])
+]
 format_wr = [
     mnemo,
-    lambda i: TokenListJoin(", ",regn(i, 0) +
-                                 reg_or_imm(i.operands[1], "%#x") +
-                                 regn(i, 2)),
+    lambda i: TokenListJoin(
+        ", ", regn(i, 0) + reg_or_imm(i.operands[1], "%#x") + regn(i, 2)
+    ),
 ]
 format_cpop = [
     mnemo,
     lambda i: [(Token.Constant, "{i.operands[0]:d}")]
-              + TokenListJoin(", ", regs(i)[1:]),
+    + TokenListJoin(", ", regs(i)[1:]),
 ]
 
 SPARC_V8_full_formats = {
-    "sparc_ld_"           : format_ld,
-    "sparc_ldf_ldc"       : format_ld,
-    "sparc_st_"           : format_st,
-    "sparc_stf_stc"       : format_st,
-    "sparc_logic_"        : format_logic,
-    "sethi"               : format_sethi,
-    "nop"                 : [mnemo],
-    "sparc_arith_"        : format_arith,
-    "sparc_shift_"        : format_arith,
-    "sparc_tagged_"       : format_arith,
-    "sparc_Bicc"          : format_xb,
-    "call"                : format_call,
-    "jmpl"                : format_jmpl,
-    "rett"                : format_addr,
-    "t"                   : format_t,
-    "sparc_rd_"           : [mnemo, LambdaTokenListJoin(", ", regs)],
-    "sparc_wr_"           : format_wr,
-    "stbar"               : [mnemo],
-    "flush"               : format_addr,
-    "sparc_Fpop1_group1"  : [mnemo, LambdaTokenListJoin(", ", regs)],
-    "sparc_Fpop1_group2"  : [mnemo, LambdaTokenListJoin(", ", regs)],
-    "sparc_Fpop2_"        : [mnemo, LambdaTokenListJoin(", ", regs)],
-    "sparc_Cpop"          : format_cpop,
+    "sparc_ld_": format_ld,
+    "sparc_ldf_ldc": format_ld,
+    "sparc_st_": format_st,
+    "sparc_stf_stc": format_st,
+    "sparc_logic_": format_logic,
+    "sethi": format_sethi,
+    "nop": [mnemo],
+    "sparc_arith_": format_arith,
+    "sparc_shift_": format_arith,
+    "sparc_tagged_": format_arith,
+    "sparc_Bicc": format_xb,
+    "call": format_call,
+    "jmpl": format_jmpl,
+    "rett": format_addr,
+    "t": format_t,
+    "sparc_rd_": [mnemo, LambdaTokenListJoin(", ", regs)],
+    "sparc_wr_": format_wr,
+    "stbar": [mnemo],
+    "flush": format_addr,
+    "sparc_Fpop1_group1": [mnemo, LambdaTokenListJoin(", ", regs)],
+    "sparc_Fpop1_group2": [mnemo, LambdaTokenListJoin(", ", regs)],
+    "sparc_Fpop2_": [mnemo, LambdaTokenListJoin(", ", regs)],
+    "sparc_Cpop": format_cpop,
 }
 
 SPARC_V8_full = Formatter(SPARC_V8_full_formats)
@@ -268,45 +271,45 @@ def SPARC_Synthetic_renaming(s, i, toks=False):
         and not i.misc["icc"]
         and i.operands[0] == i.operands[1] == g0
     ):
-        replace_mnemonic_token(s,"clr")
-        replace_opn_token(s,1,None)
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "clr")
+        replace_opn_token(s, 1, None)
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "or" and not i.misc["icc"] and i.operands[0] == g0:
-        replace_mnemonic_token(s,"mov")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "mov")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "or" and not i.misc["icc"] and i.operands[0] == i.operands[2]:
-        replace_mnemonic_token(s,"bset")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "bset")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "rd":
         op1 = str(i.operands[0])
         if op1.startswith("asr") or op1 in ("y", "psr", "wim", "tbr"):
-            replace_mnemonic_token(s,"mov")
+            replace_mnemonic_token(s, "mov")
     elif i.mnemonic == "wr" and i.operands[0] == g0:
-        replace_mnemonic_token(s,"mov")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "mov")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "sub" and i.misc["icc"] and i.operands[2] == g0:
-        replace_mnemonic_token(s,"cmp")
-        replace_opn_token(s,2,None)
+        replace_mnemonic_token(s, "cmp")
+        replace_opn_token(s, 2, None)
     elif i.mnemonic == "jmpl" and i.operands[1] == g0:
         if i.operands[0] == (i7 + cst(8)):
             s = [(Token.Mnemonic, "ret")]
         elif i.operands[0] == (o7 + cst(8)):
             s = [(Token.Mnemonic, "retl")]
         else:
-            replace_mnemonic_token(s,"jmp")
-            replace_opn_token(s,1,None)
+            replace_mnemonic_token(s, "jmp")
+            replace_opn_token(s, 1, None)
     elif i.mnemonic == "jmpl" and i.operands[1] == o7:
-        replace_mnemonic_token(s,"call")
-        replace_opn_token(s,1,None)
+        replace_mnemonic_token(s, "call")
+        replace_opn_token(s, 1, None)
     elif (
         i.mnemonic == "or"
         and i.misc["icc"]
         and i.operands[1]._is_reg
         and i.operands[0] == i.operands[2] == g0
     ):
-        replace_mnemonic_token(s,"tst")
-        replace_opn_token(s,2,None)
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "tst")
+        replace_opn_token(s, 2, None)
+        replace_opn_token(s, 0, None)
     elif (
         i.mnemonic == "restore"
         and i.operands[0] == i.operands[1] == i.operands[2] == g0
@@ -315,48 +318,52 @@ def SPARC_Synthetic_renaming(s, i, toks=False):
     if i.mnemonic == "save" and i.operands[0] == i.operands[1] == i.operands[2] == g0:
         s = [(Token.Mnemonic, "save")]
     if i.mnemonic == "xnor" and i.operands[1] == g0:
-        replace_mnemonic_token(s,"not")
-        replace_opn_token(s,1,None)
+        replace_mnemonic_token(s, "not")
+        replace_opn_token(s, 1, None)
         if i.operands[0] == i.operands[2]:
-            replace_opn_token(s,2,None)
+            replace_opn_token(s, 2, None)
     elif i.mnemonic == "sub" and i.operands[0] == g0 and i.operands[1]._is_reg:
-        replace_mnemonic_token(s,"neg")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "neg")
+        replace_opn_token(s, 0, None)
         if i.operands[1] == i.operands[2]:
-            replace_opn_token(s,2,None)
-    elif i.mnemonic == "add" and i.operands[0] == i.operands[2] and i.operands[1]._is_cst:
+            replace_opn_token(s, 2, None)
+    elif (
+        i.mnemonic == "add" and i.operands[0] == i.operands[2] and i.operands[1]._is_cst
+    ):
         m = "inccc" if i.misc["icc"] else "inc"
-        replace_mnemonic_token(s,m)
+        replace_mnemonic_token(s, m)
         if i.operands[1] == 1:
-            replace_opn_token(s,2,None)
-            replace_opn_token(s,1,None)
+            replace_opn_token(s, 2, None)
+            replace_opn_token(s, 1, None)
         else:
-            replace_opn_token(s,0,None)
-    elif i.mnemonic == "sub" and i.operands[0] == i.operands[2] and i.operands[1]._is_cst:
+            replace_opn_token(s, 0, None)
+    elif (
+        i.mnemonic == "sub" and i.operands[0] == i.operands[2] and i.operands[1]._is_cst
+    ):
         m = "deccc" if i.misc["icc"] else "dec"
-        replace_mnemonic_token(s,m)
+        replace_mnemonic_token(s, m)
         if i.operands[1] == 1:
-            replace_opn_token(s,2,None)
-            replace_opn_token(s,1,None)
+            replace_opn_token(s, 2, None)
+            replace_opn_token(s, 1, None)
         else:
-            replace_opn_token(s,0,None)
+            replace_opn_token(s, 0, None)
     elif i.mnemonic == "and" and i.misc["icc"] and i.operands[2] == g0:
-        replace_mnemonic_token(s,"btst")
-        replace_opn_token(s,2,None)
-        s[1],s[3] = s[3],s[1]
+        replace_mnemonic_token(s, "btst")
+        replace_opn_token(s, 2, None)
+        s[1], s[3] = s[3], s[1]
     elif i.mnemonic == "andn" and not i.misc["icc"] and i.operands[0] == i.operands[2]:
-        replace_mnemonic_token(s,"bclr")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "bclr")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "xor" and not i.misc["icc"] and i.operands[0] == i.operands[2]:
-        replace_mnemonic_token(s,"btog")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "btog")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "stb" and i.operands[0] == g0:
-        replace_mnemonic_token(s,"clrb")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "clrb")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "sth" and i.operands[0] == g0:
-        replace_mnemonic_token(s,"clrh")
-        replace_opn_token(s,0,None)
+        replace_mnemonic_token(s, "clrh")
+        replace_opn_token(s, 0, None)
     elif i.mnemonic == "st" and i.operands[0] == g0:
-        replace_mnemonic_token(s,"clr")
-        replace_opn_token(s,0,None)
-    return s if toks else highlight(s)
+        replace_mnemonic_token(s, "clr")
+        replace_opn_token(s, 0, None)
+    return s if toks else View.engine.highlight(s)

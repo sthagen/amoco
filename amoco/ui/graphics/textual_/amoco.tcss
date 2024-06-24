@@ -1,0 +1,21 @@
+EmulScreen {
+  layout: vertical;
+}
+
+EmulScreen > * {
+  border: round #888;
+  padding: 0 0;
+  height: auto;
+  text-align: left;
+  content-align: center middle;
+  margin: 0;
+}
+
+Header {
+  dock: top;
+}
+
+Footer {
+  dock: bottom;
+}
+

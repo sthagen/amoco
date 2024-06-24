@@ -4,10 +4,12 @@
 # Copyright (C) 2013 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
-from .utils import *
+from .env import sp, pc, npc, g0, r, nf, zf, vf, cf, y, cwp, wim
+from .env import NWINDOWS
+from .env import internals, mem, cst, comp, tst, top, bit0, bit1
+from .utils import CONDB
 
-from amoco.cas.utils import *
+from amoco.cas.utils import AddWithCarry, SubWithBorrow
 
 
 def __mem(a, sz):
@@ -36,7 +38,7 @@ def __pcnpc(i_xxx):
 
 
 def trap(ins, fmap, trapname):
-    fmap.internals["trap"] = trapname
+    internals["trap"] = trapname
 
 
 # i_xxx is the translation of SPARC V8 instruction xxx.
@@ -191,7 +193,7 @@ def i_stda(ins, fmap):
 
 
 def i_ldstub(ins, fmap):
-    i_ldub(ins, fmap)       #i_ldub advances the pc/npc
+    i_ldub(ins, fmap)  # i_ldub advances the pc/npc
     src = ins.operands[0]
     fmap[__mem(src, 8)] = cst(0xFF, 8)
 
@@ -435,7 +437,7 @@ def i_mulscc(ins, fmap):
     if fmap(y[0:1]) == 0:
         op2 = cst(0, 32)
     else:
-        op2 = fmap(src2)
+        op2 = multiplier
     _r, carry, overflow = AddWithCarry(_rs1, op2)
     # update icc:
     fmap[nf] = _r[31:32]
@@ -454,16 +456,16 @@ def i_mulscc(ins, fmap):
 def i_umul(ins, fmap):
     src1, src2, dst = ins.operands
     src1.sf = src2.sf = False
-    _r = fmap(src1 ** src2)  # pow is used for long mul (_r is 64 bits here)
+    _r = fmap(src1**src2)  # pow is used for long mul (_r is 64 bits here)
     fmap[y] = _r[32:64]
     if dst is not g0:
         fmap[dst] = _r[0:32]
     if ins.misc["icc"]:
         fmap[nf] = _r[31:32]
         fmap[zf] = _r == 0
-        fmap[
-            vf
-        ] = bit0  # umul does not set overflow (compilers are supposed to check Y!=0 if needed)
+        fmap[vf] = (
+            bit0  # umul does not set overflow (compilers are supposed to check Y!=0 if needed)
+        )
         fmap[cf] = bit0
 
 
@@ -471,16 +473,16 @@ def i_umul(ins, fmap):
 def i_smul(ins, fmap):
     src1, src2, dst = ins.operands
     src1.sf = src2.sf = True
-    _r = fmap(src1 ** src2)  # pow is used for long mul (_r is 64 bits here)
+    _r = fmap(src1**src2)  # pow is used for long mul (_r is 64 bits here)
     fmap[y] = _r[32:64]
     if dst is not g0:
         fmap[dst] = _r[0:32]
     if ins.misc["icc"]:
         fmap[nf] = _r[31:32]
         fmap[zf] = _r == 0
-        fmap[
-            vf
-        ] = bit0  # smul does not set overflow (compilers are supposed to check Y!=(_r>>31) if needed)
+        fmap[vf] = (
+            bit0  # smul does not set overflow (compilers are supposed to check Y!=(_r>>31) if needed)
+        )
         fmap[cf] = bit0
 
 

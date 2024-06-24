@@ -5,10 +5,12 @@
 # published under GPLv2 license
 
 from amoco.logger import Log
+
 logger = Log(__name__)
 logger.debug("loading module")
 
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class StructCore(object):
     """
@@ -43,7 +45,7 @@ class StructCore(object):
     """
 
     packed = False
-    union  = False
+    union = False
     typedef = False
 
     def __new__(cls, *args, **kargs):
@@ -59,9 +61,9 @@ class StructCore(object):
     def __setitem__(self, fname, x):
         setattr(self._v, fname, x)
 
-    def update(self,kv):
-        k,v = kv
-        setattr(self._v,k,v)
+    def update(self, kv):
+        k, v = kv
+        setattr(self._v, k, v)
 
     def __getattr__(self, attr):
         if attr not in self.__dict__:
@@ -89,7 +91,7 @@ class StructCore(object):
         It uses the *class* fields instances so that the resulting
         value is infinite if any of these field is a VarField.
         """
-        psize = {32:4, 64:8}.get(psize,psize)
+        psize = {32: 4, 64: 8}.get(psize, psize)
         A = cls.align_value(psize) or 1
         sz = 0
         for f in cls.fields:
@@ -123,7 +125,7 @@ class StructCore(object):
             if f.instance is None:
                 continue
             fsz = f.size()
-            if fsz==float('Infinity'):
+            if fsz == float("Infinity"):
                 continue
             if self.union is False:
                 sz += fsz
@@ -147,7 +149,7 @@ class StructCore(object):
             return False
 
     @classmethod
-    def align_value(cls,psize=0):
+    def align_value(cls, psize=0):
         return max([f.align_value(psize) for f in cls.fields])
 
     def unpack(self, data, offset=0, psize=0):
@@ -158,7 +160,7 @@ class StructCore(object):
                 value = f.unpack(data, offset, psize)
             except Exception:
                 name = self.__class__.__name__
-                logger.error("error unpacking %s %s"%(name,str(f)))
+                logger.error("error unpacking %s %s" % (name, str(f)))
                 raise StructureError(name)
             else:
                 # if the structure is a typedef, it has only one field
@@ -168,7 +170,7 @@ class StructCore(object):
                 # otherwise, unless its a bitfield, it has a name:
                 if f.name:
                     setattr(self._v, f.name, value)
-                elif hasattr(f,'subnames'):
+                elif hasattr(f, "subnames"):
                     # its a bitfield so the unpacked value
                     # is a dict with subnames/subvalues:
                     self._v.__dict__.update(value)
@@ -183,17 +185,17 @@ class StructCore(object):
                 # unless its a bitfield, it has a name:
                 if f.name:
                     data.append(getattr(self._v, f.name))
-                elif hasattr(f,'subnames'):
+                elif hasattr(f, "subnames"):
                     D = {}
                     for x in f.subnames:
-                        D[x] = getattr(self._v,x)
+                        D[x] = getattr(self._v, x)
                     data.append(D)
         parts = []
         offset = 0
         for f, v in zip(self.fields, data):
-            p = f.pack(v,psize)
+            p = f.pack(v, psize)
             if not self.packed:
-                pad = f.align(offset,psize) - offset
+                pad = f.align(offset, psize) - offset
                 p = b"\0" * pad + p
             parts.append(p)
         if self.union is False:
@@ -210,31 +212,32 @@ class StructCore(object):
         o = 0
         for f in self.fields:
             if not self.packed:
-                o = f.align(o,psize)
+                o = f.align(o, psize)
             if f.name == name:
                 return o
             o += f.size(psize)
         raise AttributeError(name)
 
-    def offsets(self,psize=0):
+    def offsets(self, psize=0):
         if self.union is not False:
-            return [(0,f.size(psize)) for f in self.fields]
+            return [(0, f.size(psize)) for f in self.fields]
         o = 0
         offsets = []
         for f in self.fields:
             if not self.packed:
-                o = f.align(o,psize)
-            if hasattr(f,'subsizes'):
+                o = f.align(o, psize)
+            if hasattr(f, "subsizes"):
                 oo = 0
                 for x in f.subsizes:
-                    xo = float("%d.%d"%(o,oo))
-                    so = float(".%d"%x)
+                    xo = float("%d.%d" % (o, oo))
+                    so = float(".%d" % x)
                     oo += x
-                    offsets.append((xo,so))
+                    offsets.append((xo, so))
             else:
-                offsets.append((o,f.size(psize)))
+                offsets.append((o, f.size(psize)))
             o += f.size(psize)
         return offsets
+
 
 # ------------------------------------------------------------------------------
 

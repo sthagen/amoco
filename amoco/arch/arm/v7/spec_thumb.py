@@ -7,12 +7,19 @@
 # spec_xxx files are providers for instruction objects.
 # These objects are wrapped and created by disasm.py.
 
-from amoco.arch.core import *
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_cpu_state,
+)
+from amoco.arch.core import ispec, InstructionError
 
-from amoco.arch.arm.v7 import env
-from .utils import *
+from . import env
+from .utils import InITBlock
 
 ISPECS = []
+
+# ruff: noqa: F811
 
 # ------------------------------------------------------
 # amoco THUMB-1  instruction specs:

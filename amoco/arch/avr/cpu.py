@@ -1,29 +1,19 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.avr.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.avr import env
+from amoco.arch.avr import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
-
-instruction_avr = type("instruction_avr", (instruction,), {})
-instruction_avr.set_uarch(uarch)
-
-from amoco.arch.avr.formats import AVR_full
-
-instruction_avr.set_formatter(AVR_full)
+from amoco.arch.core import instruction, disassembler, CPU
 
 # define disassembler:
 from amoco.arch.avr import spec
 
+from amoco.arch.avr.formats import AVR_full
+
+instruction_avr = type("instruction_avr", (instruction,), {})
+instruction_avr.set_formatter(AVR_full)
+
 disassemble = disassembler([spec], iclass=instruction_avr)
 
-
-def PC(state=None):
-    return pc
-
-
-def get_data_endian():
-    return 1  # LE
+cpu = CPU(env, asm, disassemble, env.pc)
