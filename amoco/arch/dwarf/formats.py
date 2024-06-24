@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
 from amoco.arch.core import Formatter
-from amoco.ui.render import Token, TokenListJoin
+from amoco.ui.render import Token
 
 
 def mnemo(i):

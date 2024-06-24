@@ -8,7 +8,8 @@
 
 from amoco.arch.x64 import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError, Bits, pack
+
 
 # for ia32 arch we want some specialized 'modrm' format
 # so we redefine ispec decorator here to allow /0-/7 and /r
@@ -103,7 +104,7 @@ def getModRM(obj, Mod, RM, data, REX=None):
         b = env.getreg((B << 3) + sib[0:3].int(), adrsz)
         i = env.getreg((X << 3) + sib[3:6].int(), adrsz)
         ss = 1 << (sib[6:8].int())
-        s = i * ss if not i.ref in ("rsp", "esp", "sp") else 0
+        s = i * ss if i.ref not in ("rsp", "esp", "sp") else 0
     else:
         s = 0
         if adrsz != 16:

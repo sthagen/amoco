@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-long_descr = '''
+long_descr = """
 Amoco is a python package dedicated to the (static) analysis of binaries.
 
 It features:
@@ -26,52 +26,60 @@ It features:
 - various generic "helpers" and arch-dependent pretty printers to allow
   custom look-and-feel configurations (think AT&T vs. Intel syntax,
   absolute vs. relative offsets, decimal or hex immediates, etc).
-'''
+"""
 
 setup(
-    name = 'amoco',
-    version = '2.9.10',
-    description = 'yet another binary analysis framework',
-    long_description = long_descr,
+    name="amoco",
+    version="2.9.11",
+    description="yet another binary analysis framework",
+    long_description=long_descr,
     # Metadata
-    author = 'Axel Tillequin',
-    author_email = 'bdcht3@gmail.com',
-    license = 'GPLv2',
+    author="Axel Tillequin",
+    license="GPLv2",
     classifiers=[
-      'Development Status :: 3 - Alpha',
-      'Intended Audience :: Developers',
-      'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
-      'Programming Language :: Python :: 3',
-      'Topic :: Scientific/Engineering :: Information Analysis',
-      'Topic :: Security',
-      'Topic :: Software Development :: Disassemblers',
-      'Topic :: Software Development :: Interpreters',
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+        "Programming Language :: Python :: 3",
+        "Topic :: Scientific/Engineering :: Information Analysis",
+        "Topic :: Security",
+        "Topic :: Software Development :: Disassemblers",
+        "Topic :: Software Development :: Interpreters",
     ],
-    keywords='binary analysis symbolic execution',
-    packages=find_packages(exclude=['doc','tests*']),
-    url = 'https://github.com/bdcht/amoco',
-    setup_requires=['pytest-runner',],
-    tests_require=['pytest',],
-    install_requires = ['grandalf>=0.8',
-                        'crysp>=1.2',
-                        'pyparsing',
-                        'traitlets',
-                        'blessed',
-                       ],
+    keywords="binary analysis symbolic execution",
+    packages=find_packages(exclude=["doc", "tests*"]),
+    setup_requires=[
+        "pytest-runner",
+    ],
+    tests_require=[
+        "pytest",
+    ],
+    install_requires=[
+        "grandalf>=0.8",
+        "crysp>=1.2",
+        "pyparsing",
+        "traitlets",
+        "pygments",
+        "rich",
+    ],
     entry_points={
-        'console_scripts': [ 'amoco=amoco.ui.app:cli [app]' ],
+        "console_scripts": ["amoco=amoco.ui.app:cli [app]"],
     },
     extras_require={
-        'app' : ['click',
-                 'pygments',
-                 'z3-solver',
-                 'ccrawl>=1.9',
-                 'PySide6',
-                 'IPython',
-                 'prompt_toolkit>=3.0.28'],
+        "app": [
+            "click",
+            "sqlalchemy",
+            "z3-solver",
+            "ccrawl>=1.9",
+            "PySide6",
+            "IPython",
+            "textual",
+            "prompt_toolkit>=3.0.28",
+        ],
     },
-    package_data = {
-        'amoco.ui.graphics.qt_': ['*.qml','*.qss']
+    package_data={
+        "amoco.ui.graphics.qt_": ["*.qml", "*.qss"],
+        "amoco.ui.graphics.textual_": ["*.tcss"],
     },
-    data_files = [],
+    data_files=[],
 )

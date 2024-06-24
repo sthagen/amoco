@@ -8,11 +8,13 @@ from amoco.system.core import BinFormat, DataIO
 from amoco.system.memory import MemoryMap
 
 from amoco.logger import Log
+
 logger = Log(__name__)
 logger.debug("loading module")
 
-from .formatters import *
+from .formatters import Consts, token_name_fmt, token_address_fmt
 import codecs
+
 
 # our exception handler:
 class HEXError(Exception):
@@ -39,6 +41,7 @@ with Consts("HEXcode"):
 
 class HEX(BinFormat):
     is_HEX = True
+
     def __init__(self, f, offset=0):
         self.L = []
         self._filename = f.name
@@ -89,7 +92,7 @@ class HEX(BinFormat):
         self.__lines = lines
         for k, v in lines:
             m.write(k, v)
-        if len(m._zones)==1:
+        if len(m._zones) == 1:
             self.__dataio = DataIO(m._zones[None].dump())
 
     @property
@@ -159,7 +162,7 @@ class HEXline(object):
             return "[%s]" % h
         if self.HEXcode == ExtendedSegmentAddress:
             return "[%s] %s" % (h, token_address_fmt(None, self.base))
-        if self.HEXcode == StartSegmentAdress:
+        if self.HEXcode == StartSegmentAddress:
             return "[%s] %s:%s" % (
                 h,
                 token_address_fmt(None, self.cs),
@@ -167,7 +170,7 @@ class HEXline(object):
             )
         if self.HEXcode == ExtendedLinearAddress:
             return "[%s] %s" % (h, token_address_fmt(None, self.ela))
+        raise HEXError("bad HEXcode")
 
 
 # ------------------------------------------------------------------------------
-

@@ -8,9 +8,12 @@ from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
-from .env64 import *
-from .utils import *
-from amoco.cas.utils import *
+from amoco.arch.core import InstructionError
+from .env64 import pc, r30, C, N, Z, V
+from .env64 import CONDITION, bit0, internals
+from amoco.cas.expressions import mem, ext, cst, tst, comp, composer, top
+from .utils import ROR
+from amoco.cas.utils import AddWithCarry, SubWithBorrow
 
 
 def __mem(a, sz, disp=0):
@@ -604,42 +607,42 @@ def i_UDIV(i, fmap):
 
 def i_SMADDL(i, fmap):
     fmap[pc] = fmap[pc] + i.length
-    _x = fmap(i.a + (i.n ** i.m))
+    _x = fmap(i.a + (i.n**i.m))
     _x.sf = True
     fmap[i.d] = _x
 
 
 def i_SMSUBL(i, fmap):
     fmap[pc] = fmap[pc] + i.length
-    _x = fmap(i.a - (i.n ** i.m))
+    _x = fmap(i.a - (i.n**i.m))
     _x.sf = True
     fmap[i.d] = _x
 
 
 def i_UMADDL(i, fmap):
     fmap[pc] = fmap[pc] + i.length
-    _x = fmap(i.a + (i.n ** i.m))
+    _x = fmap(i.a + (i.n**i.m))
     _x.sf = False
     fmap[i.d] = _x
 
 
 def i_UMSUBL(i, fmap):
     fmap[pc] = fmap[pc] + i.length
-    _x = fmap(i.a - (i.n ** i.m))
+    _x = fmap(i.a - (i.n**i.m))
     _x.sf = False
     fmap[i.d] = _x
 
 
 def i_SMULH(i, fmap):
     fmap[pc] = fmap[pc] + i.length
-    result = fmap(i.n ** i.m)
+    result = fmap(i.n**i.m)
     result.sf = True
     fmap[i.d] = result[64:128]
 
 
 def i_UMULH(i, fmap):
     fmap[pc] = fmap[pc] + i.length
-    result = fmap(i.n ** i.m)
+    result = fmap(i.n**i.m)
     result.sf = False
     fmap[i.d] = result[64:128]
 
@@ -703,3 +706,7 @@ def i_TBZ(i, fmap):
     fmap[pc] = tst(
         op[i.bitpos : i.bitpos + 1] == 0, fmap[pc] + i.offset, fmap[pc] + i.length
     )
+
+
+# expose "microarchitecture" (instructions semantics)
+uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))

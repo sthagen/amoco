@@ -4,9 +4,12 @@
 # Copyright (C) 2006-2019 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.elf import *
+from amoco.system import elf
+from amoco.system.structs import Consts
 from amoco.system.core import CoreExec, DefineStub
-import amoco.arch.arm.cpu_armv7 as cpu
+from amoco.cas.expressions import top
+from amoco.arch.core import Bits
+from amoco.arch.arm.cpu_armv7 import cpu
 
 with Consts("e_flags"):
     EF_ARM_EABI_UNKNOWN = 0x0
@@ -202,21 +205,21 @@ class OS(object):
         p.OS = self
         # create text and data segments according to elf header:
         for s in bprm.Phdr:
-            if s.p_type == PT_INTERP:
+            if s.p_type == elf.PT_INTERP:
                 interp = bprm.readsegment(s).strip(b"\0")
-            elif s.p_type == PT_LOAD:
+            elif s.p_type == elf.PT_LOAD:
                 ms = bprm.loadsegment(s, self.PAGESIZE)
-                if ms != None:
+                if ms is not None:
                     vaddr, data = ms.popitem()
                     p.state.mmap.write(vaddr, data)
-            elif s.p_type == PT_GNU_STACK:
+            elif s.p_type == elf.PT_GNU_STACK:
                 # executable_stack = s.p_flags & PF_X
                 pass
         # init task state:
         for r in cpu.regs:
             p.state[r] = cpu.cst(0, 32)
         entry = cpu.cst(p.bin.entrypoints[0], 32)
-        p.setx(cpu.pc_,entry)
+        p.setx(cpu.pc_, entry)
         # create the stack space:
         if self.ASLR:
             p.state.mmap.newzone(p.cpu.sp)
@@ -241,50 +244,49 @@ class OS(object):
         # to improve asm block views:
         plt = got = None
         for s in p.bin.Shdr:
-            if s.name=='.plt':
+            if s.name == ".plt":
                 plt = s
-            elif s.name=='.got':
+            elif s.name == ".got":
                 got = s
         if plt and got:
-            address = p.cpu.cst(plt.sh_addr,32)
+            address = p.cpu.cst(plt.sh_addr, 32)
             thunk = address.value
             pltco = p.bin.readsection(plt)
             # we assume that plt code is not in Thumb...
-            mode = p.cpu.internals['isetstate']
-            p.cpu.internals['isetstate']=0
+            mode = p.cpu.internals["isetstate"]
+            p.cpu.internals["isetstate"] = 0
             m = None
-            while(pltco):
+            while pltco:
                 i = p.cpu.disassemble(pltco)
                 if i is None:
                     pltco = pltco[4:]
                     address += 4
                     continue
-                if i.mnemonic=='ADR':
-                   thunk = address.value
-                   m = p.state.__class__()
-                   m[p.cpu.pc_] = address
-                   m[p.cpu.pc] = address + 4
+                if i.mnemonic == "ADR":
+                    thunk = address.value
+                    m = p.state.__class__()
+                    m[p.cpu.pc_] = address
+                    m[p.cpu.pc] = address + 4
                 if m is not None:
                     i(m)
                     target = p.state(m(p.cpu.pc))
                     if target._is_ext:
                         p.bin.functions[thunk] = target.ref
-                pltco = pltco[i.length:]
+                pltco = pltco[i.length :]
                 address += i.length
-            #restore mode:
-            p.cpu.internals['isetstate']=mode
+            # restore mode:
+            p.cpu.internals["isetstate"] = mode
 
     def stub(self, refname):
         return self.stubs.get(refname, self.default_stub)
 
 
 class Task(CoreExec):
-
     def title_info(self):
-        return [{0:"ARM32", 1:"THUMB"}[self.cpu.internals['isetstate']]]
+        return [{0: "ARM32", 1: "THUMB"}[self.cpu.internals["isetstate"]]]
 
     def setx(self, loc, val, size=0):
-        pc = self.cpu.PC()
+        pc = self.cpu.getPC()
         if isinstance(loc, str):
             x = getattr(self.cpu, loc)
             size = x.size
@@ -316,6 +318,7 @@ class Task(CoreExec):
 
 
 # ----------------------------------------------------------------------------
+
 
 @DefineStub(OS, "*", default=True)
 def nullstub(m, **kargs):
@@ -356,11 +359,9 @@ def _assert_perror_fail(m, **kargs):
 @DefineStub(OS, "printf")
 @DefineStub(OS, "__printf_chk")
 def libc_printf(m, **kargs):
-    task = kargs.get('task',None)
+    task = kargs.get("task", None)
     if task:
         res, args = task.OS.abi(m)
         fmt = task.get_cstr(args[0])
         print(fmt)
     m[cpu.pc_] = m(cpu.lr)
-
-

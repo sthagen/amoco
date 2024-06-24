@@ -17,6 +17,8 @@ logger = Log(__name__)
 logger.debug("loading module")
 
 from amoco.system.structs import Consts, StructDefine, StructFormatter
+from amoco.cas.expressions import cst, reg
+from amoco.cas.mapper import mapper
 
 # ccrawl -b None -l ~/gcc.db show -f amoco "enum dwarf_location_atom"
 with Consts("dwarf_location_atom"):
@@ -274,11 +276,11 @@ class DwarfExec(CoreExec):
     # load the program into virtual memory (populate the mmap dict)
     def load_binary(self):
         p = self.bin
-        if p != None:
+        if p is not None:
             # create text and data segments according to elf header:
             for s in p.Phdr:
                 ms = p.loadsegment(s, PAGESIZE)
-                if ms != None:
+                if ms is not None:
                     vaddr, data = list(ms.items())[0]
                     self.mmap.write(vaddr, data)
         # create stack:

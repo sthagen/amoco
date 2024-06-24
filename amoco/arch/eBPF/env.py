@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc, is_reg_pc, is_reg_stack
+
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # https://www.kernel.org/doc/Documentation/networking/filter.txt
@@ -15,6 +17,8 @@ from amoco.cas.expressions import *
 A = reg("A", 32)
 X = reg("X", 32)
 M = [reg("M[%02d]" % i, 32) for i in range(16)]
+
+
 # bpf extensions:
 def skb(field=""):
     if not field:
@@ -45,3 +49,4 @@ E = [slc(R[i], 0, 32, "e%d" % i) for i in range(10)]
 pc = reg("pc", 64)
 is_reg_pc(pc)
 
+internals = {}

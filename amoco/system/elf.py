@@ -10,27 +10,33 @@ system/elf.py
 
 The system elf module implements Elf classes for both 32/64bits executable format.
 """
+
 from amoco.system.core import BinFormat
 from amoco.system.structs import Consts, StructDefine, StructureError
 from amoco.system.structs import StructFormatter, token_constant_fmt, token_address_fmt
+from amoco.ui.render import Token
 
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
 
-class ElfError(Exception):
+
+class ElfError(StructureError):
     """
     ElfError is raised whenever Elf object instance fails
     to decode required structures.
     """
+
     def __init__(self, message):
         self.message = message
 
     def __str__(self):
         return str(self.message)
 
+
 # ------------------------------------------------------------------------------
+
 
 class Elf(BinFormat):
     """
@@ -49,6 +55,7 @@ class Elf(BinFormat):
                           definitions (if not stripped) and import names.
         variables (list): a list of global variables' names (if found.)
     """
+
     is_ELF = True
 
     @property
@@ -88,7 +95,7 @@ class Elf(BinFormat):
                 elif P.p_type == PT_INTERP:
                     self.dynamic = True
                     self.Phdr.append(P)
-                elif not P.p_type in Consts.All["p_type"].keys():
+                elif P.p_type not in Consts.All["p_type"].keys():
                     logger.verbose("invalid segment detected (removed)")
                 else:
                     self.Phdr.append(P)
@@ -129,6 +136,9 @@ class Elf(BinFormat):
         self.__sections = {}
         self.functions = self.__functions()
         self.variables = self.__variables()
+        self.strtab = self.__sections.get(".strtab", self.strtab)
+        self.symtab = self.__sections.get(".symtab", self.symtab)
+        self.reltab = self.__sections.get(".reltab", self.reltab)
 
     def getsize(self):
         "total file size of all the Program headers"
@@ -190,8 +200,8 @@ class Elf(BinFormat):
             else:
                 c = self.readsection(s)
             if c:
-                if size != None:
-                    if isinstance(c, Str):
+                if size is not None:
+                    if isinstance(c, str):
                         c = c.data
                     data = c[offset : offset + size]
                 else:
@@ -201,7 +211,7 @@ class Elf(BinFormat):
     def getfileoffset(self, target):
         "converts given target virtual address back to offset in file"
         s, offset, base = self.getinfo(target)
-        if s != None:
+        if s is not None:
             result = s.p_offset + offset
         else:
             result = None
@@ -219,16 +229,23 @@ class Elf(BinFormat):
         need to be mapped at virtual base address.
         (Returns None if not a PT_LOAD segment.)
         """
-        ELF_PAGESTART  = lambda _v : (_v)&(~(pagesize-1))
-        ELF_PAGEOFFSET = lambda _v : (_v)&( (pagesize-1))
-        ELF_PAGEALIGN  = lambda _v : (_v+pagesize-1) & (~(pagesize-1))
+
+        def ELF_PAGESTART(_v):
+            return (_v) & (~(pagesize - 1))
+
+        def ELF_PAGEOFFSET(_v):
+            return (_v) & (pagesize - 1)
+
+        def ELF_PAGEALIGN(_v):
+            return (_v + pagesize - 1) & (~(pagesize - 1))
+
         if S.p_type == PT_LOAD:
             if S.p_align > 1 and ((S.p_offset % S.p_align) != (S.p_vaddr % S.p_align)):
                 logger.verbose(
                     "wrong p_vaddr/p_align [%08x/%0d]" % (S.p_vaddr, S.p_align)
                 )
             size = S.p_filesz + ELF_PAGEOFFSET(S.p_vaddr)
-            off  = S.p_offset - ELF_PAGEOFFSET(S.p_vaddr)
+            off = S.p_offset - ELF_PAGEOFFSET(S.p_vaddr)
             addr = ELF_PAGESTART(S.p_vaddr)
             size = ELF_PAGEALIGN(size)
             self.__file.seek(off)
@@ -267,6 +284,8 @@ class Elf(BinFormat):
                 s = self.__file.read(S.sh_size)
             self.__sections[S.name] = s
             return s
+        logger.warning("no matching section for %s" % sect)
+        return None
 
     def __read_symtab(self, section):
         if section.sh_type not in (SHT_SYMTAB, SHT_DYNSYM):
@@ -366,7 +385,7 @@ class Elf(BinFormat):
                 if self.Shdr[v[2]].name != fltr:
                     D.pop(k)
         if self.dynamic:
-            D.update(self.__dynamic(STT_FUNC))
+            D.update(self.__dynamic())
         return D
 
     def __variables(self, fltr=None):
@@ -395,6 +414,7 @@ class Elf(BinFormat):
 
     def __dynamic(self, type=None):
         D = {}
+        # make sure .dynamic appears in __sections
         self.readsection(".dynamic")
         dynsym = self.readsection(".dynsym") or []
         dynstr = self.readsection(".dynstr")
@@ -402,7 +422,7 @@ class Elf(BinFormat):
             for s in self.Shdr:
                 if s.sh_type in (SHT_REL, SHT_RELA):
                     for r in self.readsection(s):
-                        if r.r_offset:
+                        if r.r_offset and r.r_sym:
                             sym = dynsym[r.r_sym]
                             D[r.r_offset] = str(dynstr[sym.st_name].decode())
         return D
@@ -432,8 +452,9 @@ class Elf(BinFormat):
             R["PIE"] = 1
         R["Full RelRO"] = 0
         for d in self.readsection(".dynamic") or []:
-            if d.d_tag == DT_BIND_NOW or\
-              (d.d_tag == DT_FLAGS and d.d_un==DF_BIND_NOW):
+            if d.d_tag == DT_BIND_NOW or (
+                d.d_tag == DT_FLAGS and d.d_un == DF_BIND_NOW
+            ):
                 R["Full RelRO"] = 1
                 break
         return R
@@ -465,7 +486,7 @@ class Elf(BinFormat):
 
 
 @StructDefine(
-"""
+    """
 B  : ELFMAG0
 c*3: ELFMAG
 B  : EI_CLASS
@@ -524,7 +545,7 @@ with Consts("EI_OSABI"):
 
 
 @StructDefine(
-"""
+    """
 IDENT :< e_ident
 H : e_type
 H : e_machine
@@ -816,7 +837,7 @@ class Sym(StructFormatter):
             fvalue.typename = fsize.typename = "Q"
             self.fields.append(fvalue)
             self.fields.append(fsize)
-        self.name_formatter("st_name", "st_bind", "st_type", "st_visibility")
+        self.name_formatter("st_bind", "st_type", "st_visibility")
         if data:
             self.unpack(data, offset)
 
@@ -838,13 +859,17 @@ class Sym(StructFormatter):
 
     st_visibility = property(ELF32_ST_VISIBILITY)
 
-    def __str__(self):
-        s = super().__str__() + "\n"
-        cname = self.__class__.__name__
-        s += self.strkey("st_bind", cname) + "\n"
-        s += self.strkey("st_type", cname) + "\n"
-        s += self.strkey("st_visibility", cname)
-        return s
+    def _vltable(self, **kargs):
+        t = super()._vltable(**kargs)
+        for x in ("st_bind", "st_type", "st_visibility"):
+            tv = self.fmtkey(x)
+            tv.rows[0].addcolumn(0, [(Token.Name, x)])
+            tv.rows[0].addcolumn(1, [(Token.Literal, ": ")])
+            for r in tv.rows[1:]:
+                r.addcolumn(0, [(Token.Literal, " ")])
+                r.addcolumn(1, [(Token.Literal, " ")])
+            t.rows.extend(tv.rows)
+        return t
 
 
 # legal values for st_bind:
@@ -918,11 +943,17 @@ class Rel(StructFormatter):
         else:
             self._v.r_info = sym << 32 + (type & 0xFFFFFFFF)
 
-    def __str__(self):
-        s = StructFormatter.__str__(self) + "\n"
-        cname = self.__class__.__name__
-        s += self.strkey("r_type", cname)
-        return s
+    def _vltable(self, **kargs):
+        t = super()._vltable(**kargs)
+        for x in ("r_type", "r_sym"):
+            tv = self.fmtkey(x)
+            tv.rows[0].addcolumn(0, [(Token.Name, x)])
+            tv.rows[0].addcolumn(1, [(Token.Literal, ": ")])
+            for r in tv.rows[1:]:
+                r.addcolumn(0, [(Token.Literal, " ")])
+                r.addcolumn(1, [(Token.Literal, " ")])
+            t.rows.extend(tv.rows)
+        return t
 
 
 @StructDefine(
@@ -1200,6 +1231,7 @@ with Consts("l_flags"):
     LL_DELTA = 1 << 5
     LL_EXPORTS = 1 << 3
     LL_DELAY_LOAD = 1 << 4
+
 
 # String Table entry; provided to deal with C strings and char indexed
 # string table sections. This is not a standard structure, it is more

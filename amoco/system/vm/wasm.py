@@ -11,21 +11,26 @@ system/wasm.py
 The system wasm module implements both the Wasm class binary format
 and a Wasm virtual machine.
 """
+
 from amoco.system.structs import Consts, StructDefine
 from amoco.system.structs import StructFormatter, StructCore
 from amoco.system.structs import Field, VarField, RawField, Leb128Field
-from amoco.system.utils import read_leb128, write_uleb128
+from amoco.system.structs import read_leb128, read_uleb128, write_uleb128
+from amoco.ui.render import Token
+from amoco.arch.wasm import cpu
 
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
 
+
 class WasmError(Exception):
     """
     WasmError is raised whenever Wasm object instance fails
     to decode required structures.
     """
+
     def __init__(self, message):
         self.message = message
 
@@ -41,9 +46,10 @@ class Wasm(object):
     This class takes a DataIO object (ie an opened file of BytesIO instance)
     and decodes all Wasm structures found in it.
     """
-    def __init__(self,f):
-        from amoco.arch.wasm import cpu
+
+    def __init__(self, f):
         self.__file = f
+        self.module = Module(f)
         self.cpu = cpu
 
     @property
@@ -54,18 +60,14 @@ class Wasm(object):
     def dataio(self):
         return self.__file
 
-    def __init__(self, f):
-        self.__file = f
-        self.module = Module(f)
-
 
 # ------------------------------------------------------------------------------
 
 
 class VectorField(Field):
-
     def __init__(self, fmt):
-        f0 = StructDefine(fmt,packed=True).fields[0]
+        super().__init__(fmt)
+        f0 = StructDefine(fmt, packed=True).fields[0]
         self.__type = f0.type or f0
         self.typename = f0.typename
         self.count = 0
@@ -85,19 +87,19 @@ class VectorField(Field):
 
     @property
     def source(self):
-        cnt = self.count if self.count>0 else '#'
-        return "vector(%s)[%s]: %s; %s"%(self.typename,cnt,self.name,self.comment)
+        cnt = self.count if self.count > 0 else "#"
+        return "vector(%s)[%s]: %s; %s" % (self.typename, cnt, self.name, self.comment)
 
     def unpack(self, data, offset=0, psize=0):
         "returns a vector of count element(s) of its self.type"
-        n,sz = read_leb128(data,1,offset)
+        n, sz = read_leb128(data, 1, offset)
         offset += sz
         vec = []
         for _ in range(n):
             e = self.type()
             blob = e.unpack(data, offset)
             vec.append(blob)
-            if isinstance(blob,StructCore):
+            if isinstance(blob, StructCore):
                 l = len(blob)
             else:
                 l = e.size()
@@ -113,7 +115,7 @@ class VectorField(Field):
     def pack(self, value):
         assert self.count == len(value)
         vec = b"".join([self.type().pack(v) for v in value])
-        res = write_uleb128(self.count)+vec
+        res = write_uleb128(self.count) + vec
         assert self._sz == len(res)
         return res
 
@@ -122,15 +124,16 @@ class VectorField(Field):
 
 
 @StructDefine(
-"""
+    """
 c*4  : magic
 I    : version
-""", packed=True,
+""",
+    packed=True,
 )
 class Module(StructFormatter):
     def __init__(self, data=None, offset=0):
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
     def unpack(self, data, offset=0, psize=0):
         super().unpack(data, offset)
@@ -139,17 +142,17 @@ class Module(StructFormatter):
         self.sections = []
         offset += len(self)
         end = data.size()
-        while offset<(end-1):
-            _id = ord(data[offset:offset+1])
+        while offset < (end - 1):
+            _id = ord(data[offset : offset + 1])
             try:
-                s = SectionID[_id](data,offset)
+                s = SectionID[_id](data, offset)
                 offset += len(s)
                 self.sections.append(s)
             except KeyError:
                 logger.warning("Wrong section id, aborting...")
                 break
             except WasmError:
-                logger.warning("malformed section with id %d"%_id)
+                logger.warning("malformed section with id %d" % _id)
                 break
         return self
 
@@ -171,9 +174,10 @@ class Module(StructFormatter):
             s.pfx = tmp
         return "\n".join(ss)
 
+
 # ------------------------------------------------------------------------------
 
-with Consts('Section.id'):
+with Consts("Section.id"):
     ID_Custom = 0
     ID_Type = 1
     ID_Function = 2
@@ -192,11 +196,12 @@ with Consts('Section.id'):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class CustomSection(StructFormatter):
     alt = "Section"
@@ -204,18 +209,19 @@ class CustomSection(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.name_formatter("id")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
 
 # ------------------------------------------------------------------------------
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class TypeSection(StructFormatter):
     alt = "Section"
@@ -223,66 +229,71 @@ class TypeSection(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.name_formatter("id")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         ft = VectorField("FunctionType : ft")
         self.update(ft.get(self.content))
         return self
 
+
 @StructDefine(
-"""
+    """
 B         : d
 I*%leb128 : n1
 B*.n1     : rt1
 I*%leb128 : n2
 B*.n2     : rt2
-""", packed=True,
+""",
+    packed=True,
 )
 class FunctionType(StructFormatter):
     alt = "Section"
 
     @staticmethod
-    def wat_formatter(k, x, cls=None, fmt=None):
-        L = [(Token.Literal,'(')]
+    def wat_formatter(k, x, cls=None):
+        L = [(Token.Literal, "(")]
         for v in x:
-            if v in valtype:
+            if v in cpu.valtype:
                 L.append((Token.Register, str(cpu.valtype[v])))
             else:
                 L.append((Token.Constant, hex(x)))
-            L.append((Token.Literal,', '))
+            L.append((Token.Literal, ", "))
         L.pop()
-        L.append((Token.Literal,')'))
-        return highlight(L,fmt)
+        L.append((Token.Literal, ")"))
+        return L
 
     def __init__(self, data=None, offset=0):
-        self.func_formatter(rt1=self.wat_formatter,
-                            rt2=self.wat_formatter,)
+        self.func_formatter(
+            rt1=self.wat_formatter,
+            rt2=self.wat_formatter,
+        )
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
 
 # ------------------------------------------------------------------------------
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class ImportSection(StructFormatter):
     alt = "Section"
 
-    def __init__(self, data=None,offset=0):
+    def __init__(self, data=None, offset=0):
         self.name_formatter("id")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         im = VectorField("Import : im")
         self.update(im.get(self.content))
         return self
@@ -294,58 +305,63 @@ with Consts("Import.d"):
     memtype = 2
     globaltype = 3
 
+
 @StructDefine(
-"""
+    """
 I*%leb128 : n1
 s*.n1     : mod
 I*%leb128 : n2
 s*.n2     : nm
 B         : d
-""", packed=True,
+""",
+    packed=True,
 )
 class Import(StructFormatter):
-    def __init__(self, data=None,offset=0):
+    def __init__(self, data=None, offset=0):
         self.name_formatter("d")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
+    def unpack(self, data, offset=0, psize=0):
         from codecs import decode
-        super().unpack(data,offset)
-        self.mod = decode(self.mod,"UTF-8")
-        self.nm = decode(self.nm,"UTF-8")
+
+        super().unpack(data, offset)
+        self.mod = decode(self.mod, "UTF-8")
+        self.nm = decode(self.nm, "UTF-8")
         offset += len(self)
-        if self.d==0x00:
-            f = Leb128Field("I",fname="x")
+        if self.d == 0x00:
+            f = Leb128Field("I", fname="x")
             f.instance = self
             self.fields.append(f)
-            self.update(f.get(data,offset))
-        if self.d==0x01:
-            f = Field(TableType,fname="tt")
+            self.update(f.get(data, offset))
+        if self.d == 0x01:
+            f = Field(TableType, fname="tt")
             f.instance = self
             self.fields.append(f)
-            self.update(f.get(data,offset))
-        if self.d==0x02:
-            f = Field(MemType,fname="mt")
+            self.update(f.get(data, offset))
+        if self.d == 0x02:
+            f = Field(MemType, fname="mt")
             f.instance = self
             self.fields.append(f)
-            self.update(f.get(data,offset))
-        if self.d==0x03:
-            f = Field(GlobalType,fname="gt")
+            self.update(f.get(data, offset))
+        if self.d == 0x03:
+            f = Field(GlobalType, fname="gt")
             f.instance = self
             self.fields.append(f)
-            self.update(f.get(data,offset))
+            self.update(f.get(data, offset))
         return self
+
 
 # ------------------------------------------------------------------------------
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class FunctionSection(StructFormatter):
     alt = "Section"
@@ -353,10 +369,10 @@ class FunctionSection(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.name_formatter("id")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         x = VectorField("I*%leb128 : x")
         self.update(x.get(self.content))
         return self
@@ -366,11 +382,12 @@ class FunctionSection(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class TableSection(StructFormatter):
     alt = "Section"
@@ -378,58 +395,61 @@ class TableSection(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.name_formatter("id")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         tt = VectorField("TableType : tt")
         self.update(tt.get(self.content))
         return self
 
 
 @StructDefine(
-"""
+    """
 B         : et
 B         : flags
 I*%leb128 : n
-""", packed=True,
+""",
+    packed=True,
 )
 class TableType(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.flag_formatter("flags")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        if len(self.fields)==4:
+    def unpack(self, data, offset=0, psize=0):
+        if len(self.fields) == 4:
             self.fields.pop()
-        super().unpack(data,offset)
+        super().unpack(data, offset)
         offset += len(self)
-        if self.flags&1:
+        if self.flags & 1:
             self.has_max = True
-            f = Leb128Field("I",fname="m")
+            f = Leb128Field("I", fname="m")
             f.instance = self
             self.fields.append(f)
-            self.update(f.get(data,offset))
-        if self.flags&2:
+            self.update(f.get(data, offset))
+        if self.flags & 2:
             self.is_shared = True
         else:
             self.is_shared = False
-        if self.flags&4:
+        if self.flags & 4:
             self.is_64 = True
         else:
             self.is_64 = False
         return self
 
+
 # ------------------------------------------------------------------------------
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class MemorySection(StructFormatter):
     alt = "Section"
@@ -437,47 +457,50 @@ class MemorySection(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.name_formatter("id")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         mem = VectorField("MemType : mem")
         self.update(mem.get(self.content))
         return self
+
 
 with Consts("flags"):
     has_max = 0x01
     is_shared = 0x02
     is_64 = 0x04
 
+
 @StructDefine(
-"""
+    """
 B         : flags
 I*%leb128 : n
-""", packed=True,
+""",
+    packed=True,
 )
 class MemType(StructFormatter):
     def __init__(self, data=None, offset=0):
         self.flag_formatter("flags")
         if data:
-            self.unpack(data,offset)
+            self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        if len(self.fields)==3:
+    def unpack(self, data, offset=0, psize=0):
+        if len(self.fields) == 3:
             self.fields.pop()
-        super().unpack(data,offset)
+        super().unpack(data, offset)
         offset += len(self)
-        if self.flags&1:
+        if self.flags & 1:
             self.has_max = True
-            f = Leb128Field("I",fname="m")
+            f = Leb128Field("I", fname="m")
             f.instance = self
             self.fields.append(f)
-            self.update(f.get(data,offset))
-        if self.flags&2:
+            self.update(f.get(data, offset))
+        if self.flags & 2:
             self.is_shared = True
         else:
             self.is_shared = False
-        if self.flags&4:
+        if self.flags & 4:
             self.is_64 = True
         else:
             self.is_64 = False
@@ -488,11 +511,12 @@ class MemType(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class GlobalSection(StructFormatter):
     alt = "Section"
@@ -502,8 +526,8 @@ class GlobalSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         glob = VectorField("GlobalType : glob")
         self.update(glob.get(self.content))
         return self
@@ -513,11 +537,13 @@ with Consts("GlobalType.mut"):
     const = 0
     var = 1
 
+
 @StructDefine(
-"""
+    """
 B : t
 B : mut
-""", packed=True,
+""",
+    packed=True,
 )
 class GlobalType(StructFormatter):
     def __init__(self, data=None, offset=0):
@@ -530,11 +556,12 @@ class GlobalType(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class ExportSection(StructFormatter):
     alt = "Section"
@@ -544,11 +571,12 @@ class ExportSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         ex = VectorField("Export : ex")
         self.update(ex.get(self.content))
         return self
+
 
 with Consts("Export.desc"):
     func = 0x00
@@ -556,13 +584,15 @@ with Consts("Export.desc"):
     mem = 0x02
     glob = 0x03
 
+
 @StructDefine(
-"""
+    """
 I*%leb128 : n
 s*.n      : name
 B         : desc
 I*%leb128 : x
-""", packed=True,
+""",
+    packed=True,
 )
 class Export(StructFormatter):
     alt = "Section"
@@ -572,10 +602,11 @@ class Export(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
+    def unpack(self, data, offset=0, psize=0):
         from codecs import decode
-        super().unpack(data,offset)
-        self.name = decode(self.name,"UTF-8")
+
+        super().unpack(data, offset)
+        self.name = decode(self.name, "UTF-8")
         return self
 
 
@@ -583,11 +614,12 @@ class Export(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class StartSection(StructFormatter):
     alt = "Section"
@@ -597,9 +629,9 @@ class StartSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
-        n,sz = read_uleb128(self.content)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
+        n, sz = read_uleb128(self.content)
         self.x = n
         return self
 
@@ -608,11 +640,12 @@ class StartSection(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class ElementSection(StructFormatter):
     alt = "Section"
@@ -622,17 +655,18 @@ class ElementSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         seg = VectorField("Elem : seg")
         self.update(seg.get(self.content))
         return self
 
 
 @StructDefine(
-"""
+    """
 B         : d
-""", packed=True,
+""",
+    packed=True,
 )
 class Elem(StructFormatter):
     alt = "Section"
@@ -646,77 +680,77 @@ class Elem(StructFormatter):
         t = type("container", (object,), {})
         self._v = t()
 
-    def add_expr(self,data,offset):
-        expr = VarField("B","~","e")
-        expr.set_terminate(lambda b,f: b==0x0B)
+    def add_expr(self, data, offset):
+        expr = VarField("B", "~", "e")
+        expr.set_terminate(lambda b, f: b == 0x0B)
         self.fields.append(expr)
         expr.instance = self
-        self.update(expr.get(data,offset))
+        self.update(expr.get(data, offset))
         return expr
 
-    def add_et(self,data,offset):
-        et = RawField("B",0,"et")
+    def add_et(self, data, offset):
+        et = RawField("B", 0, "et")
         self.fields.append(et)
         et.instance = self
-        self.update(et.get(data,offset))
+        self.update(et.get(data, offset))
         return et
 
-    def add_vec(self,fmt,data,offset):
+    def add_vec(self, fmt, data, offset):
         v = VectorField(fmt)
         self.fields.append(v)
         v.instance = self
-        self.update(v.get(data,offset))
+        self.update(v.get(data, offset))
         return v
 
-    def unpack(self,data,offset=0,psize=0):
+    def unpack(self, data, offset=0, psize=0):
         self.reset()
-        super().unpack(data,offset)
+        super().unpack(data, offset)
         offset += 1
-        if self.d==0x00:
-            f = self.add_expr(data,offset)
+        if self.d == 0x00:
+            f = self.add_expr(data, offset)
             offset += f.size()
             self.add_vec("I*%leb128 : y", data, offset)
-        elif self.d in (0x01,0x03):
-            f = self.add_et(data,offset)
+        elif self.d in (0x01, 0x03):
+            f = self.add_et(data, offset)
             offset += f.size()
             self.add_vec("I*%leb128 : y", data, offset)
         elif self.d == 0x02:
-            f = Leb128Field("I",fname="x")
+            f = Leb128Field("I", fname="x")
             self.fields.append(f)
-            self.update(f.get(data,offset))
+            self.update(f.get(data, offset))
             offset += f.size()
-            f = self.add_expr(data,offset)
+            f = self.add_expr(data, offset)
             offset += f.size()
-            f = self.add_et(data,offset)
+            f = self.add_et(data, offset)
             offset += f.size()
             self.add_vec("I*%leb128 : y", data, offset)
         elif self.d == 0x04:
-            f = self.add_expr(data,offset)
+            f = self.add_expr(data, offset)
             offset += f.size()
             f = VectorField("B~ : el")
-            f.type.set_terminate(lambda b,f: b==0x0B)
+            f.type.set_terminate(lambda b, f: b == 0x0B)
             self.fields.append(f)
-            self.update(f.get(data,offset))
-        elif self.d in (0x05,0x07):
-            f = self.add_et(data,offset)
+            self.update(f.get(data, offset))
+        elif self.d in (0x05, 0x07):
+            f = self.add_et(data, offset)
             offset += f.size()
             f = VectorField("B~ : el")
             self.fields.append(f)
-            f.type.set_terminate(lambda b,f: b==0x0B)
-            self.update(f.get(data,offset))
+            f.type.set_terminate(lambda b, f: b == 0x0B)
+            self.update(f.get(data, offset))
         elif self.d == 0x06:
-            f = Leb128Field("I",fname="x")
+            f = Leb128Field("I", fname="x")
             self.fields.append(f)
-            self.update(f.get(data,offset))
+            self.update(f.get(data, offset))
             offset += f.size()
-            f = self.add_expr(data,offset)
+            f = self.add_expr(data, offset)
             offset += f.size()
-            f = self.add_et(data,offset)
+            f = self.add_et(data, offset)
             offset += f.size()
             f = VectorField("B~ : el")
-            f.type.set_terminate(lambda b,f: b==0x0B)
+            f.type.set_terminate(lambda b, f: b == 0x0B)
             self.fields.append(f)
-            self.update(f.get(data,offset))
+            self.update(f.get(data, offset))
         return self
 
 
@@ -724,11 +758,12 @@ class Elem(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class CodeSection(StructFormatter):
     alt = "Section"
@@ -738,17 +773,18 @@ class CodeSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         seg = VectorField("Code : code")
         self.update(seg.get(self.content))
         return self
 
 
 @StructDefine(
-"""
+    """
 I*%leb128 : sz
-""", packed=True,
+""",
+    packed=True,
 )
 class Code(StructFormatter):
     alt = "Section"
@@ -762,30 +798,32 @@ class Code(StructFormatter):
         t = type("container", (object,), {})
         self._v = t()
 
-    def unpack(self,data,offset=0,psize=0):
+    def unpack(self, data, offset=0, psize=0):
         self.reset()
-        super().unpack(data,offset)
+        super().unpack(data, offset)
         offset += len(self)
-        func = data[offset:offset+self.sz]
+        func = data[offset : offset + self.sz]
         locs = VectorField("Locs : t")
         locs.instance = self
         self.fields.append(locs)
         self.update(locs.get(func))
         offset = locs.size()
         body = func[offset:]
-        if body[-1]!=0x0B:
+        if body[-1] != 0x0B:
             raise WasmError("func body has no END")
-        expr = RawField("s",len(body),"e")
+        expr = RawField("s", len(body), "e")
         self.fields.append(expr)
         expr.instance = self
         self.update(expr.get(body))
         return self
 
+
 @StructDefine(
-"""
+    """
 I*%leb128 : n
 i*%leb128 : t
-""", packed=True,
+""",
+    packed=True,
 )
 class Locs(StructFormatter):
     alt = "Section"
@@ -799,11 +837,12 @@ class Locs(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class DataSection(StructFormatter):
     alt = "Section"
@@ -813,16 +852,18 @@ class DataSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         seg = VectorField("Data : code")
         self.update(seg.get(self.content))
         return self
 
+
 @StructDefine(
-"""
+    """
 B         : d
-""", packed=True,
+""",
+    packed=True,
 )
 class Data(StructFormatter):
     alt = "Section"
@@ -836,35 +877,34 @@ class Data(StructFormatter):
         t = type("container", (object,), {})
         self._v = t()
 
-    def add_initexpr(self,data,offset):
-        expr = VarField("B","~","e")
-        expr.set_terminate(lambda b,f: b==0x0B)
+    def add_initexpr(self, data, offset):
+        expr = VarField("B", "~", "e")
+        expr.set_terminate(lambda b, f: b == 0x0B)
         expr.instance = self
         self.fields.append(expr)
         try:
-            self.update(expr.get(data,offset))
-        except StandardError:
+            self.update(expr.get(data, offset))
+        except Exception:
             raise WasmError("malformed init expr")
         return expr
 
-    def add_vec(self,fmt,data,offset):
+    def add_vec(self, fmt, data, offset):
         v = VectorField(fmt)
         self.fields.append(v)
         v.instance = self
-        self.update(v.get(data,offset))
+        self.update(v.get(data, offset))
         return v
 
-
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
         offset += 1
-        if self.d&0x02:
-            f = Leb128Field("I",fname="x")
+        if self.d & 0x02:
+            f = Leb128Field("I", fname="x")
             self.fields.append(f)
-            self.update(f.get(data,offset))
+            self.update(f.get(data, offset))
             offset += f.size()
-        if self.d&0x01==0:
-            f = self.add_initexpr(data,offset)
+        if self.d & 0x01 == 0:
+            f = self.add_initexpr(data, offset)
             offset += f.size()
         self.add_vec("B : b", data, offset)
         return self
@@ -874,11 +914,12 @@ class Data(StructFormatter):
 
 
 @StructDefine(
-"""
+    """
 B         : id
 I*%leb128 : size
 s*.size   : content
-""", packed=True,
+""",
+    packed=True,
 )
 class DataCountSection(StructFormatter):
     alt = "Section"
@@ -888,9 +929,9 @@ class DataCountSection(StructFormatter):
         if data:
             self.unpack(data, offset)
 
-    def unpack(self,data,offset=0,psize=0):
-        super().unpack(data,offset)
-        n,sz = read_uleb128(self.content)
+    def unpack(self, data, offset=0, psize=0):
+        super().unpack(data, offset)
+        n, sz = read_uleb128(self.content)
         self.n = n
         return self
 
@@ -899,21 +940,19 @@ class DataCountSection(StructFormatter):
 
 
 SectionID = {
-        0: CustomSection,
-        1: TypeSection,
-        2: ImportSection,
-        3: FunctionSection,
-        4: TableSection,
-        5: MemorySection,
-        6: GlobalSection,
-        7: ExportSection,
-        8: StartSection,
-        9: ElementSection,
-        10: CodeSection,
-        11: DataSection,
-        12: DataCountSection,
+    0: CustomSection,
+    1: TypeSection,
+    2: ImportSection,
+    3: FunctionSection,
+    4: TableSection,
+    5: MemorySection,
+    6: GlobalSection,
+    7: ExportSection,
+    8: StartSection,
+    9: ElementSection,
+    10: CodeSection,
+    11: DataSection,
+    12: DataCountSection,
 }
 
 # ------------------------------------------------------------------------------
-
-

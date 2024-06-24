@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
-from amoco.cas.expressions import regtype
-from amoco.arch.core import Formatter, Token
+from .env import composer, cst
+from amoco.arch.core import Formatter
+from amoco.ui.render import Token
+
 
 def mnemo(i):
     mn = i.mnemonic.lower()
     return [(Token.Mnemonic, "{: <12}".format(mn))]
 
-def deref(base,off):
+
+def deref(base, off):
     return "+%d(%s)" % (off, base)
+
 
 def opers(i):
     s = []
@@ -28,13 +31,15 @@ def opers(i):
         s.pop()
     return s
 
+
 def opers_mem(i):
     s = []
     op = i.operands[0]
     s.append((Token.Register, op.__str__()))
     s.append((Token.Literal, ", "))
-    s.append((Token.Memory,deref(*(i.operands[1:]))))
+    s.append((Token.Memory, deref(*(i.operands[1:]))))
     return s
+
 
 def opers_adr(i):
     s = opers(i)
@@ -43,10 +48,11 @@ def opers_adr(i):
         s[-1] = (Token.Address, "%s" % (imm_ref))
     return s
 
+
 def opers_rel(i):
     s = opers(i)
     if i.misc["imm_ref"] is None and i.address is not None:
-        imm_ref = composer([cst(0,2),i.operands[-1],i.address[28:32]])
+        imm_ref = composer([cst(0, 2), i.operands[-1], i.address[28:32]])
         s[-1] = (Token.Address, "%s" % (imm_ref))
     return s
 

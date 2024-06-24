@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
-from amoco.cas.expressions import regtype
-from amoco.arch.core import Formatter, Token
+from .env import x
+from amoco.arch.core import Formatter
+from amoco.ui.render import Token
 
 
 def mnemo(i):

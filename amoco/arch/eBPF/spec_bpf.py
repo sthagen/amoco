@@ -9,7 +9,13 @@
 
 from amoco.arch.eBPF import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+)
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # instruction BPF decoders
@@ -19,6 +25,7 @@ from amoco.arch.core import *
 # -------------------------------------------------------
 
 ISPECS = []
+
 
 # BPF_ALU (0x4) instructions:
 @ispec("64>[ 001 s 0000 {00} jt(8) jf(8) ~k(32) ]", mnemonic="add")

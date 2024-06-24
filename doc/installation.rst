@@ -7,40 +7,35 @@ Amoco is a pure python package which depends on the following packages:
 - crysp_ used by the generic intruction decoder (:mod:`arch.core`)
 - traitlets_ used for managing the configuration
 - pyparsing_ used for parsing instruction specifications
+- rich_ used for terminal ui
 
 Recommended *optional* packages are:
 
 - z3_ used to simplify expressions and solve constraints
-- pygments_ used for pretty printing of assembly code and expressions
 - ccrawl_ used to define and import data structures
 
 Some optional features related to UI and persistence require:
 
 - click_ used to define amoco command-line app
-- blessed_ used for terminal based debugger frontend
 - ply_ for parsing *GNU as* files
 - sqlalchemy_ for persistence of amoco objects in a database
-- pyside2_ for the Qt-based graphical user interface
+- pyside6_ for the Qt-based graphical user interface
 
 Installation is straightforward for most packages using pip_.
+For a full package, from the amoco directory, just do::
 
-The z3_ SMT solver is highly recommended (do ``pip install z3-solver``).
-The pygments_ package is also recommended for pretty printing, and
-sqlalchemy_ is needed if you want to store analysis results and objects.
+pip install .
 
-If you want to use the graphical interface you will need **all** packages.
 
 .. _grandalf: https://github.com/bdcht/grandalf
 .. _crysp: https://github.com/bdcht/crysp
 .. _traitlets:  https://pypi.org/project/traitlets/
 .. _pyparsing: https://pypi.org/project/pyparsing/
-.. _z3: http://z3.codeplex.com/
-.. _pygments: http://pygments.org/
+.. _z3: https://github.com/Z3Prover/z3
+.. _rich: https://github.com/Textualize/rich
 .. _ccrawl: https://github.com/bdcht/ccrawl/
 .. _click: https://click.palletsprojects.com/
-.. _blessed: https://github.com/jquast/blessed
-.. _tqdm: https://github.com/tqdm/tqdm
 .. _ply: http://www.dabeaz.com/ply/
 .. _sqlalchemy: http://www.sqlalchemy.org/
-.. _pyside2: https://wiki.qt.io/Qt_for_Python
+.. _pyside6: https://doc.qt.io/qtforpython-6/
 .. _pip: https://pypi.python.org/pypi/pip

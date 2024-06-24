@@ -1,31 +1,20 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.eBPF.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.eBPF import env
+from amoco.arch.eBPF import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
-
-instruction_eBPF = type("instruction_eBPF", (instruction,), {})
-instruction_eBPF.set_uarch(uarch)
+from amoco.arch.core import instruction, disassembler, CPU
 
 from amoco.arch.eBPF.formats import eBPF_full
-
-instruction_eBPF.set_formatter(eBPF_full)
 
 # define disassembler:
 from amoco.arch.eBPF import spec
 
+instruction_eBPF = type("instruction_eBPF", (instruction,), {})
+instruction_eBPF.set_formatter(eBPF_full)
+
 disassemble = disassembler([spec], iclass=instruction_eBPF)
 
-
-def PC(state=None):
-    return pc
-
-
-def get_data_endian():
-    return 1
-
-registers = R+[pc]
+cpu = CPU(env, asm, disassemble, env.pc)
+cpu.registers = env.R + [env.pc]

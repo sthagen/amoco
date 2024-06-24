@@ -4,8 +4,12 @@
 # Copyright (C) 2018 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.arch.v850.env import *
-from amoco.cas.utils import *
+from amoco.arch.v850.env import sp, pc, CONDITION, Z, S, CY, OV, SAT, R, NP, EP
+from amoco.arch.v850.env import CTPC, CTPSW, PSW, CTBP, EIPC, EIPSW, FEPC, FEPSW
+from amoco.arch.v850.env import mem, ext, cst, tst, composer
+from amoco.arch.v850.env import ID, bit0, bit1
+from amoco.cas.utils import AddWithCarry, SubWithBorrow
+
 
 # ------------------------------------------------------------------------------
 # low level functions :
@@ -164,7 +168,7 @@ def i_MAC(i, fmap):
     r4 = i.misc["reg4"]
     r3 = i.misc["reg3"]
     off = fmap(composer([src3, R[r3 + 1]]))
-    r = fmap(src1 ** src2) + off
+    r = fmap(src1**src2) + off
     fmap[dst] = r[0:32]
     fmap[R[r4 + 1]] = r[32:64]
 
@@ -177,7 +181,7 @@ def i_MUL(i, fmap):
     src1, src2, dst = i.operands
     if src1._is_cst:
         src1 = src1.signextend(32)
-    r = src1 ** src2
+    r = src1**src2
     fmap[src2] = r[0:32]
     fmap[dst] = r[32:64]
 
@@ -201,7 +205,7 @@ def i_MULU(i, fmap):
     src1, src2, dst = i.operands
     if src1._is_cst:
         src1 = src1.zeroextend(32)
-    r = src1 ** src2
+    r = src1**src2
     fmap[src2] = r[0:32]
     fmap[dst] = r[32:64]
 
@@ -283,7 +287,7 @@ def i_SUB(i, fmap):
 
 
 @_pc
-def i_SUB(i, fmap):
+def i_SUBI(i, fmap):
     src, dst = i.operands
     r, c, o = SubWithBorrow(fmap(src), fmap(dst))
     fmap[Z] = r == 0
@@ -411,7 +415,7 @@ def i_CAXI(i, fmap):
     fmap[CY] = c
     fmap[OV] = o
     fmap[msrc] = tst(r == 0, fmap(dst), r)
-    fmap[dst] = adr
+    fmap[dst] = r
 
 
 @_pc
@@ -557,7 +561,7 @@ def i_SBSF(i, fmap):
     fmap[S] = r < 0
     fmap[CY] = c
     fmap[OV] = o
-    strue = r - cst(1, x.size)
+    strue = r - cst(1, r.size)
     sfalse = r
     fmap[dst] = tst(fmap(cond), strue, sfalse)
 

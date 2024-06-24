@@ -9,11 +9,15 @@
 
 from amoco.arch.msp430 import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec, pack
+from amoco.arch.core import type_control_flow, type_data_processing
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # instruction MSP430 decoders
 # -------------------------------------------------------
+
 
 # get operand type/value based on addressing mode:
 def getopd(obj, mode, reg, data, CGR=False):
@@ -120,6 +124,7 @@ def msp430_jumps(obj, offset):
     off = env.cst(offset * 2, 11).signextend(16)
     obj.operands = [off]
     obj.type = type_control_flow
+
 
 @ispec("16<[ 001 111 offset(10) ]", mnemonic="JMP", BW=0)
 def msp430_jumps(obj, offset):

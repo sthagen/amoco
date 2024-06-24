@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc, cst, bit1
+from amoco.cas.expressions import is_reg_pc, is_reg_stack, is_reg_flags
+from amoco.cas.expressions import *  # noqa: F403
 
 # registers :
 # -----------
@@ -106,3 +108,5 @@ CONDITION = {
     CONDITION_LE: ("le", ((S ^ OV) | Z) == 1),
     CONDITION_GT: ("gt", ((S ^ OV) | Z) == 0),
 }
+
+internals = {}

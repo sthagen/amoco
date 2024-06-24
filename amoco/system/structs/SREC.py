@@ -7,13 +7,15 @@
 from amoco.system.core import BinFormat, DataIO
 from amoco.system.memory import MemoryMap
 
-from .formatters import *
+from .formatters import Consts, token_name_fmt, token_address_fmt, token_constant_fmt
 
 from amoco.logger import Log
+
 logger = Log(__name__)
 logger.debug("loading module")
 
 import codecs
+
 
 # our exception handler:
 class SRECError(Exception):
@@ -22,6 +24,7 @@ class SRECError(Exception):
 
     def __str__(self):
         return str(self.message)
+
 
 # The SREC Constants.
 # ------------------------------------------------------------------------------
@@ -43,6 +46,7 @@ with Consts("SREC"):
 
 class SREC(BinFormat):
     is_SREC = True
+
     def __init__(self, f, offset=0):
         self.L = []
         self._entrypoint = 0
@@ -61,11 +65,11 @@ class SREC(BinFormat):
                 count = 0
             elif l.SRECtype in (Count16, Count24):
                 if count != l.address:
-                    logger.error("invalid count in SREC format at line %d"%i)
-            elif l.SRECtype in (Data16,Data24,Data32):
+                    logger.error("invalid count in SREC format at line %d" % i)
+            elif l.SRECtype in (Data16, Data24, Data32):
                 count += 1
             else:
-                logger.warn("unknown SRECtype: %d"%l.SRECtype)
+                logger.warn("unknown SRECtype: %d" % l.SRECtype)
             self.L.append(l)
             i += 1
         self.__dataio = None
@@ -81,21 +85,21 @@ class SREC(BinFormat):
     def load_binary(self, mmap=None):
         mem = []
         for l in self.L:
-            if l.SRECtype in (Data16,Data24,Data32):
+            if l.SRECtype in (Data16, Data24, Data32):
                 mem.append((l.address, l.data))
         if mmap is not None:
-            for (k, v) in mem:
+            for k, v in mem:
                 mmap.write(k, v)
 
     def decode(self):
         mem = []
         for l in self.L:
-            if l.SRECtype in (Data16,Data24,Data32):
+            if l.SRECtype in (Data16, Data24, Data32):
                 mem.append((l.address, l.data))
         m = MemoryMap()
-        for (k, v) in mem:
+        for k, v in mem:
             m.write(k, v)
-        if len(m._zones)==1:
+        if len(m._zones) == 1:
             self.__dataio = DataIO(m._zones[None].dump())
 
     @property
@@ -137,33 +141,33 @@ class SRECline(object):
             cksum = sum(s) & 0xFF
             self.cksum = cksum ^ 0xFF
             if self.cksum != int(line[-2:], 16):
-                logger.warn("bad checksum, needed %02x"%(cksum^0xff))
-        except (AssertionError,ValueError):
+                logger.warn("bad checksum, needed %02x" % (cksum ^ 0xFF))
+        except (AssertionError, ValueError):
             raise SRECError(line)
 
     @property
     def size(self):
         l = [4, 4, 6, 8, 0, 4, 6, 8, 6, 4][self.SRECtype]
         if self.SRECtype in (Count16, Count24):
-            r = 2*self.count
-            if r-2 != l:
-                l = r-2
+            r = 2 * self.count
+            if r - 2 != l:
+                l = r - 2
         return l
 
-    def fixit(self,count=True,cksum=True):
+    def fixit(self, count=True, cksum=True):
         if self.SRECtype:
             l = self.size
             if count:
-                self.count = (l/2)+len(self.data)+1
+                self.count = (l / 2) + len(self.data) + 1
             if cksum:
                 s = self.pack(False)
-                s = codecs.decode(s[2:],"hex")
+                s = codecs.decode(s[2:], "hex")
                 if isinstance(s, str):
                     s = (ord(x) for x in s)
                 cksum = sum(s) & 0xFF
-                self.cksum = cksum^0xFF
+                self.cksum = cksum ^ 0xFF
 
-    def pack(self,cksum=True):
+    def pack(self, cksum=True):
         s = b"S%1d%02X" % (self.SRECtype, self.count)
         fa = b"%%0%dX" % self.size
         s += fa % self.address
@@ -190,5 +194,4 @@ class SRECline(object):
             return "[%s] %s" % (h, token_constant_fmt(None, self.address))
         if self.SRECtype in (Start16, Start24, Start32):
             return "[%s] %s" % (h, token_address_fmt(None, self.address))
-
-
+        raise SRECError("bad SRECtype")

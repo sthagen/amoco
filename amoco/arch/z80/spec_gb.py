@@ -11,8 +11,15 @@ from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_cpu_state,
+    type_control_flow,
+)
 from amoco.arch.z80 import env
+
+# ruff: noqa: F811
 
 # modifications of spec_mostek.ISPECS according to GB specs...
 # (all DD/FD prefixed spec are removed IX/IY
@@ -63,6 +70,7 @@ ISPECS = []
 # ----------------
 # 8-bit load group
 # ----------------
+
 
 # LD r,r'
 @ispec("8<[ 01 rd(3) rs(3) ]", mnemonic="LD")
@@ -156,6 +164,7 @@ def mostek_ld(obj, n):
 # 16-bit load group
 # -----------------
 
+
 # LD dd,nn
 @ispec("24<[ nn(16) 00 dd(2) 0001 ]", mnemonic="LD")
 def mostek_ld(obj, dd, nn):
@@ -211,6 +220,7 @@ def mostek_ld(obj, nn):
 # ----------------------
 # 8-bit Arithmetic Group
 # ----------------------
+
 
 # ADD a,r
 @ispec("8<[ 1000 0 r(3) ]", mnemonic="ADD")
@@ -348,6 +358,7 @@ def mostek_rotshift(obj, r):
 # -----------------------------
 # Bit Set, Reset and Test Group
 # -----------------------------
+
 
 # unprefixed BIT & SET:
 @ispec("16<[ 01 b(3) r(3) {cb} ]", mnemonic="BIT")

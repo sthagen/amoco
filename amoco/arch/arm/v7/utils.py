@@ -140,6 +140,8 @@ def ThumbExpandImm(imm12):
             tmp = x & 0xFF
             tmp2 = (tmp << 8) | tmp
             imm32 = (tmp2 << 16) | tmp2
+        else:
+            raise ValueError(s)
         return cst(imm32, 32)
     else:
         v = cst((1 << 7) | (x & 0x7F), 32)

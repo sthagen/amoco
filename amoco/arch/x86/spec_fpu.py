@@ -6,7 +6,9 @@
 
 # spec_xxx files are providers for instruction objects.
 
-from .utils import *
+from . import env
+from .utils import ispec_ia32, getModRM, InstructionError
+from amoco.arch.core import type_data_processing, type_cpu_state
 
 # ------------------------------------------------------
 # amoco x86 FPU (x87) instruction specs:

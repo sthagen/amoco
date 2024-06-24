@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.tricore.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.tricore import env
+from amoco.arch.tricore import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_tricore = type("instruction_tricore", (instruction,), {})
-instruction_tricore.set_uarch(uarch)
 
 from amoco.arch.tricore.formats import TriCore_full
 
@@ -20,10 +17,4 @@ from amoco.arch.tricore import spec
 
 disassemble = disassembler([spec], iclass=instruction_tricore)
 
-
-def PC(state=None):
-    return pc
-
-
-def get_data_endian():
-    return 1  # LE
+cpu = CPU(env, asm, disassemble, env.pc)

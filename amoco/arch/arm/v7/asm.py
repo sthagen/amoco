@@ -4,13 +4,22 @@
 # Copyright (C) 2006-2011 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
+from .env import pc, pc_, lr, sp, C, Z, N, V, internals, CONDITION
+from amoco.cas.expressions import mem, bit0, bit1, top, composer, cst, ror
 
 # utilities:
 # ----------
 
-from .utils import *
-from amoco.cas.utils import *
+from .utils import (
+    stst,
+    LSL_C,
+    LSR_C,
+    ASR_C,
+    Shift_C,
+    ROR_C,
+    RRX_C,
+)
+from amoco.cas.utils import AddWithCarry
 from amoco.arch.core import InstructionError
 from amoco.logger import Log
 
@@ -35,7 +44,12 @@ def __check_state(i, fmap):
     if _s != internals["isetstate"]:
         logger.info(
             "switch to %s instructions"
-            % ({0: "ARM", 1: "Thumb",}[internals["isetstate"]])
+            % (
+                {
+                    0: "ARM",
+                    1: "Thumb",
+                }[internals["isetstate"]]
+            )
         )
 
 
@@ -74,6 +88,7 @@ def __setflags(fmap, cond, cout, result, overflow=None):
 
 # i_xxx is the translation of UAL (ARM/Thumb) instruction xxx.
 # ------------------------------------------------------------------------------
+
 
 # Branch instructions (A4.3, pA4-7)
 def i_B(i, fmap):
@@ -126,6 +141,7 @@ def i_BXJ(i, fmap):
 
 
 # Data processing instructions (A4.4)
+
 
 # standard (4.4.1):
 def i_ADC(i, fmap):
@@ -189,7 +205,7 @@ def i_BIC(i, fmap):
 
 def i_CMN(i, fmap):
     cond, dest, op1 = __pre(i, fmap)
-    if i.stype != None:
+    if i.stype is not None:
         shifted = Shift_C(fmap(op1), i.stype, i.shift, fmap(C))
     else:
         shifted = fmap(op1)
@@ -199,7 +215,7 @@ def i_CMN(i, fmap):
 
 def i_CMP(i, fmap):
     cond, dest, op1 = __pre(i, fmap)
-    if i.stype != None:
+    if i.stype is not None:
         shifted = Shift_C(fmap(op1), i.stype, i.shift, fmap(C))
     else:
         shifted = fmap(op1)
@@ -234,7 +250,6 @@ def i_MOV(i, fmap):
 def i_MOVT(i, fmap):
     cond, dest, op1 = __pre(i, fmap)
     result = fmap(op1)
-    cout = fmap(op1.bit(31))
     fmap[dest[16:32]] = stst(cond, result, fmap(dest[16:32]))
 
 
@@ -433,7 +448,7 @@ def i_SMLABB(i, fmap):
     cond, dest, Rn, Rm, Ra = __pre(i, fmap)
     op1 = Rn[0:16]
     op2 = Rm[0:16]
-    result = fmap((op1 ** op2) + Ra)
+    result = fmap((op1**op2) + Ra)
     fmap[dest] = stst(cond, result, fmap(dest))
     overflow = top(1)
     fmap[V] = stst(cond, overflow, fmap(V))
@@ -443,7 +458,7 @@ def i_SMLABT(i, fmap):
     cond, dest, Rn, Rm, Ra = __pre(i, fmap)
     op1 = Rn[0:16]
     op2 = Rm[16:32]
-    result = fmap((op1 ** op2) + Ra)
+    result = fmap((op1**op2) + Ra)
     fmap[dest] = stst(cond, result, fmap(dest))
     overflow = top(1)
     fmap[V] = stst(cond, overflow, fmap(V))
@@ -453,7 +468,7 @@ def i_SMLATT(i, fmap):
     cond, dest, Rn, Rm, Ra = __pre(i, fmap)
     op1 = Rn[16:32]
     op2 = Rm[16:32]
-    result = fmap((op1 ** op2) + Ra)
+    result = fmap((op1**op2) + Ra)
     fmap[dest] = stst(cond, result, fmap(dest))
     overflow = top(1)
     fmap[V] = stst(cond, overflow, fmap(V))
@@ -463,7 +478,7 @@ def i_SMLATB(i, fmap):
     cond, dest, Rn, Rm, Ra = __pre(i, fmap)
     op1 = Rn[16:32]
     op2 = Rm[0:16]
-    result = fmap((op1 ** op2) + Ra)
+    result = fmap((op1**op2) + Ra)
     fmap[dest] = stst(cond, result, fmap(dest))
     overflow = top(1)
     fmap[V] = stst(cond, overflow, fmap(V))
@@ -491,7 +506,7 @@ def i_SMLADX(i, fmap):
 
 def i_SMLAL(i, fmap):
     cond, RdLo, RdHi, Rn, Rm = __pre(i, fmap)
-    result = fmap(Rn ** Rm + composer([RdLo, RdHi]))
+    result = fmap(Rn**Rm + composer([RdLo, RdHi]))
     fmap[RdLo] = stst(cond, result[0:32], fmap(RdLo))
     fmap[RdHi] = stst(cond, result[32:64], fmap(RdHi))
     if i.setflags:
@@ -503,7 +518,7 @@ def i_SMLALBB(i, fmap):
     cond, RdLo, RdHi, Rn, Rm = __pre(i, fmap)
     op1 = Rn[0:16]
     op2 = Rm[0:16]
-    result = fmap((op1 ** op2).signextend(64) + composer([RdLo, RdHi]))
+    result = fmap((op1**op2).signextend(64) + composer([RdLo, RdHi]))
     fmap[RdLo] = stst(cond, result[0:32], fmap(RdLo))
     fmap[RdHi] = stst(cond, result[32:64], fmap(RdHi))
 
@@ -512,7 +527,7 @@ def i_SMLALBT(i, fmap):
     cond, RdLo, RdHi, Rn, Rm = __pre(i, fmap)
     op1 = Rn[0:16]
     op2 = Rm[16:32]
-    result = fmap((op1 ** op2).signextend(64) + composer([RdLo, RdHi]))
+    result = fmap((op1**op2).signextend(64) + composer([RdLo, RdHi]))
     fmap[RdLo] = stst(cond, result[0:32], fmap(RdLo))
     fmap[RdHi] = stst(cond, result[32:64], fmap(RdHi))
 
@@ -521,7 +536,7 @@ def i_SMLALTT(i, fmap):
     cond, RdLo, RdHi, Rn, Rm = __pre(i, fmap)
     op1 = Rn[16:32]
     op2 = Rm[16:32]
-    result = fmap((op1 ** op2).signextend(64) + composer([RdLo, RdHi]))
+    result = fmap((op1**op2).signextend(64) + composer([RdLo, RdHi]))
     fmap[RdLo] = stst(cond, result[0:32], fmap(RdLo))
     fmap[RdHi] = stst(cond, result[32:64], fmap(RdHi))
 
@@ -530,7 +545,7 @@ def i_SMLALTB(i, fmap):
     cond, RdLo, RdHi, Rn, Rm = __pre(i, fmap)
     op1 = Rn[16:32]
     op2 = Rm[0:16]
-    result = fmap((op1 ** op2).signextend(64) + composer([RdLo, RdHi]))
+    result = fmap((op1**op2).signextend(64) + composer([RdLo, RdHi]))
     fmap[RdLo] = stst(cond, result[0:32], fmap(RdLo))
     fmap[RdHi] = stst(cond, result[32:64], fmap(RdHi))
 
@@ -568,6 +583,7 @@ def i_SMLALTB(i, fmap):
 # UXTB
 # UXTB16
 # UXTH
+
 
 # miscellaneous (4.4.6)
 def i_BFC(i, fmap):
@@ -626,6 +642,7 @@ def i_CLZ(i, fmap):
 # CPS
 # MRS
 # MSR
+
 
 # load/store (A4.6)
 def i_LDR(i, fmap):

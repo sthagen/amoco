@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc
+from amoco.cas.expressions import is_reg_pc, is_reg_flags, is_reg_other, is_reg_stack
+from amoco.cas.expressions import *  # noqa: F403
 
 # 64bits registers :
 # -------------------
@@ -116,6 +118,7 @@ r15d = slc(r15, 0, 32, "r15d")
 r15w = slc(r15, 0, 16, "r15w")
 r15l = slc(r15, 0, 8, "r15l")
 
+
 # return R/M register (see ModR/M Byte encoding) :
 def getreg(i, size=32):
     return {
@@ -217,8 +220,29 @@ def dr(num):
 
 internals = {"mode": 64}
 
-registers = [rax,rcx,rdx,rbx,rsp,rbp,rsi,rdi,
-             r8,r9,r10,r11,r12,r13,r14,r15,
-             rip,
-             eflags,
-             cs,ss,ds,es,fs,gs]
+registers = [
+    rax,
+    rcx,
+    rdx,
+    rbx,
+    rsp,
+    rbp,
+    rsi,
+    rdi,
+    r8,
+    r9,
+    r10,
+    r11,
+    r12,
+    r13,
+    r14,
+    r15,
+    rip,
+    eflags,
+    cs,
+    ss,
+    ds,
+    es,
+    fs,
+    gs,
+]

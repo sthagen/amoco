@@ -5,7 +5,8 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # The SH-4 CPU Core Architecture, 12 september 2002.
@@ -81,4 +82,6 @@ URC = slc(MMUCR, 10, 6, "MMUCR.URC")
 URB = slc(MMUCR, 18, 6, "MMUCR.URB")
 LRUI = slc(MMUCR, 26, 6, "MMUCR.LRUI")
 
-registers = R + r + [SR, PC, npc, nnpc]
+registers = R + r + [SR, pc, npc, nnpc]
+
+internals = {}

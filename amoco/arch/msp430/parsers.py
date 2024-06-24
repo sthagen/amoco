@@ -16,10 +16,10 @@ logger.debug("loading module")
 from amoco.arch.msp430.cpu import instruction_msp430 as instruction
 from amoco.arch.msp430 import env
 
+
 # ------------------------------------------------------------------------------
 # parser for MSP430 assembler syntax.
 class msp430_syntax:
-
     divide = False
     noprefix = False
 
@@ -67,15 +67,18 @@ class msp430_syntax:
 
     instr = mnemo + pp.Optional(opds) + pp.Optional(comment)
 
+    @staticmethod
     def action_reg(toks):
         rname = toks[0]
         return env.reg(rname.ref)
 
+    @staticmethod
     def action_hilo(toks):
         v = toks[1]
         return env.hi(v) if toks[0] == "%hi" else env.lo(v).zeroextend(32)
 
-    def action_exp(toks):
+    @classmethod
+    def action_exp(cls, toks):
         tok = toks[0]
         if isinstance(tok, env.exp):
             return tok
@@ -83,20 +86,21 @@ class msp430_syntax:
             op = tok[0]
             r = tok[1]
             if isinstance(r, list):
-                r = action_exp(r)
+                r = cls.action_exp(r)
             return env.oper(op, r)
         elif len(tok) == 3:
             op = tok[1]
             l = tok[0]
             r = tok[2]
             if isinstance(l, list):
-                l = action_exp(l)
+                l = cls.action_exp(l)
             if isinstance(r, list):
-                r = action_exp(r)
+                r = cls.action_exp(r)
             return env.oper(op, l, r)
         else:
             return tok
 
+    @staticmethod
     def action_instr(toks):
         i = instruction(b"")
         i.mnemonic = toks[0]
@@ -125,7 +129,7 @@ def asmhelper(i):
 def test_parser(cls):
     while 1:
         try:
-            res = raw_input("%s>" % cls.__name__)
+            res = input("%s>" % cls.__name__)
             E = cls.instr.parseString(res, True)
             print(E)
         except pp.ParseException:

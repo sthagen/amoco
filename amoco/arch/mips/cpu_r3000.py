@@ -1,31 +1,25 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.mips.r3000.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.mips.r3000 import env
+from amoco.arch.mips.r3000 import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_r3000 = type("instruction_r3000", (instruction,), {})
-instruction_r3000.set_uarch(uarch)
 
 from amoco.arch.mips.r3000.formats import MIPS_full
-from amoco.arch.mips.r3000.formats import MIPS_synthetic
 
 instruction_r3000.set_formatter(MIPS_full)
 
 # define disassembler:
 from amoco.arch.mips.r3000 import spec
 
-endian = lambda: -1
 
-disassemble = disassembler([spec], iclass=instruction_r3000,endian=endian)
+def endian():
+    return -1
 
 
-def PC(state=None):
-    return pc
+disassemble = disassembler([spec], iclass=instruction_r3000, endian=endian)
 
-def get_data_endian():
-    return -1  # BE
+cpu = CPU(env, asm, disassemble, pc_expr=env.pc, data_endian=-1)

@@ -1,14 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.x64.asm import *
+from amoco.arch.x64 import env
+from amoco.arch.x64 import asm
 
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
-
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_x64 = type("instruction_x64", (instruction,), {})
-instruction_x64.set_uarch(uarch)
 from amoco.arch.x64.formats import IA32e_Intel, IA32e_ATT
 
 instruction_x64.set_formatter(IA32e_Intel)
@@ -19,12 +16,18 @@ disassemble = disassembler([spec_ia32e], iclass=instruction_x64)
 disassemble.maxlen = 15
 
 
-def PC(state=None):
-    return rip if state is None else state(ptr(rip,seg=cs))
+class CPU_ia32e(CPU):
+    def getPC(self, state=None):
+        return env.rip if state is None else state(env.ptr(env.rip, seg=env.cs))
+
+    def push(self, m, x):
+        asm.push(m, x)
+
+    def pop(self, m, x):
+        asm.pop(m, x)
 
 
-def get_data_endian():
-    return 1
+cpu = CPU_ia32e(env, asm, disassemble)
 
 
 def configure(**kargs):

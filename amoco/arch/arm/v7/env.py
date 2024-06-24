@@ -4,8 +4,12 @@
 # Copyright (C) 2006-2011 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-# import expressions:
-from amoco.cas.expressions import *
+# explicit import from expressions:
+from amoco.cas.expressions import reg, slc, top, bit1
+from amoco.cas.expressions import is_reg_flags, is_reg_pc, is_reg_stack
+
+# also import all (other) expressions as interface
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # "ARM Architecture Reference Manual ARMv7-A and ARMv7-R" (DDI0406B)
@@ -109,4 +113,4 @@ cpname = ["p%02d" % x for x in range(16)]
 cpregs = {}
 cpregs["p15"] = [reg("c%02d" % x, 32) for x in range(16)]
 
-registers = regs+[pc_,apsr]
+registers = regs + [pc_, apsr]

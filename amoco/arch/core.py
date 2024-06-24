@@ -28,14 +28,47 @@ from collections import defaultdict
 from functools import reduce
 import pyparsing as pp
 
-from crysp.bits import Bits, pack, unpack
+from crysp.bits import Bits
+from crysp.bits import pack, unpack  # noqa: F401
 
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
 
-from amoco.ui.render import Token, highlight
+from amoco.cas.expressions import reg, regtype
+from amoco.ui.render import Token, TokenListJoin
+from amoco.ui.views import View
+
+
+class CPU:
+    def __init__(self, env, asm, disassemble, pc_expr=None, data_endian=1):
+        # import all environment registers and internals
+        pc_found = None
+        for k, v in env.__dict__.items():
+            setattr(self, k, v)
+            if isinstance(v, reg) and v.etype & regtype.PC:
+                pc_found = v
+        # expose "microarchitecture" (instructions semantics)
+        self.uarch = dict(
+            filter(lambda kv: kv[0].startswith("i_"), asm.__dict__.items())
+        )
+        self.disassemble = disassemble
+        self.disassemble.iclass.set_uarch(self.uarch)
+        if pc_expr is not None:
+            self.__pc = pc_expr
+        elif pc_found is not None:
+            self.__pc = pc_found
+        else:
+            logger.error("pc not found")
+        self.__data_endian = data_endian
+
+    def getPC(self, state=None):
+        return self.__pc if state is None else state(self.__pc)
+
+    def get_data_endian(self):
+        return self.__data_endian
+
 
 type_unpredictable = -1
 type_undefined = 0
@@ -58,20 +91,21 @@ INSTRUCTION_TYPES = {
 
 class icore(object):
     """This is the core class for the generic parent instruction class below.
-       It defines the mandatory API for all instructions.
+    It defines the mandatory API for all instructions.
 
-       Attributes:
-         bytes (bytes)  : instruction's bytes
-         type  (int)    : one of (type_data_processing, type_control_flow,
-                          type_cpu_state, type_system, type_other) or
-                          type_undefined (default) or type_unpredictable.
-         spec  (ispec)  : the specification that was decoded by the disassembler
-                          to instanciate this instruction.
-         mnemonic (str) : the mnemonic string as defined by the specification.
-         operands (list): the list of operands' expressions.
-         misc (dict)    : a defaultdict for passing various arch-dependent infos
-                          (which returns None for undefined keys.)
+    Attributes:
+      bytes (bytes)  : instruction's bytes
+      type  (int)    : one of (type_data_processing, type_control_flow,
+                       type_cpu_state, type_system, type_other) or
+                       type_undefined (default) or type_unpredictable.
+      spec  (ispec)  : the specification that was decoded by the disassembler
+                       to instanciate this instruction.
+      mnemonic (str) : the mnemonic string as defined by the specification.
+      operands (list): the list of operands' expressions.
+      misc (dict)    : a defaultdict for passing various arch-dependent infos
+                       (which returns None for undefined keys.)
     """
+
     def __init__(self, istr=b""):
         self.bytes = bytes(istr)
         self.type = type_undefined
@@ -93,7 +127,7 @@ class icore(object):
 
     def __call__(self, fmap):
         """calls the uarch[mnemonic] semantics function for this instruction
-           or warns if no semantics is found.
+        or warns if no semantics is found.
         """
         if self.type in (type_undefined, type_unpredictable):
             logger.error("%s instruction" % self.typename())
@@ -110,7 +144,6 @@ class icore(object):
     def length(self):
         "length of the instruction in bytes"
         return len(self.bytes)
-
 
 
 # instruction class
@@ -160,13 +193,12 @@ class instruction(icore):
     @staticmethod
     def formatter(i, toks=False):
         """default formatter if no formatter has been set, will return
-           the highlighted list from tokens for raw mnemonic,
-           and comma-separated operands expressions.
+        the highlighted list from tokens for raw mnemonic,
+        and comma-separated operands expressions.
         """
-        t = [(Token.Mnemonic, i.mnemonic)]
-        t += [(Token.Literal, op) for op in map(str, i.operands[0:1])]
-        t += [(Token.Literal, ", " + op) for op in map(str, i.operands[1:])]
-        return t if toks else highlight(t)
+        t = [(Token.Mnemonic, i.mnemonic), (Token.Column, " ")]
+        t.extend(TokenListJoin(", ", [(Token.Literal, str(op)) for op in i.operands]))
+        return t if toks else View.engine.highlight(t)
 
     def __str__(self):
         return self.formatter(i=self)
@@ -230,7 +262,9 @@ class disassembler(object):
         self.iset = iset
         self.endian = endian
         # build ispecs tree for each set:
-        logger.debug("building specs tree for modules %s", [m.__name__ for m in specmodules])
+        logger.debug(
+            "building specs tree for modules %s", [m.__name__ for m in specmodules]
+        )
         # self.indent = 0
         self.specs = [self.setup(m.ISPECS) for m in specmodules]
         # del self.indent
@@ -288,11 +322,11 @@ class disassembler(object):
     def __call__(self, bytestring, **kargs):
         e = self.endian(**kargs)
         adjust = lambda x: x.ival
-        bs = bytestring[0:self.maxlen]
+        bs = bytestring[0 : self.maxlen]
         if e == -1:
             maxsize = self.maxlen * 8
             adjust = lambda x: x.ival << (maxsize - x.size)
-            bs = bytestring[self.maxlen-1::-1]
+            bs = bytestring[self.maxlen - 1 :: -1]
         b = adjust(Bits(bs, bitorder=1))
         # get organized/optimized tree of specs:
         fl = self.specs[self.iset(**kargs)]
@@ -312,7 +346,7 @@ class disassembler(object):
                             self.__i = i
                         return self(bytestring[s.mask.size // 8 :], **kargs)
                     elif i.spec.pfx == "xdata":
-                        i.xdata(i,**kargs)
+                        i.xdata(i, **kargs)
                     self.__i = None
                     if "address" in kargs:
                         i.address = kargs["address"]
@@ -493,7 +527,7 @@ class ispec(object):
         self.precond = None
         for k, v in iter(kargs.items()):
             if k.startswith("_"):
-                if k=="__obj":
+                if k == "__obj":
                     self.precond = v
                 else:
                     self.fargs[k] = v
@@ -537,10 +571,10 @@ class ispec(object):
                     loc = d[2]
                     if loc == "*":
                         break
-                    if d[0]!='=':
+                    if d[0] != "=":
                         size += loc
         if size % 8 != 0:
-            logger.error("ispec length %d not a multiple of 8 %s" % (size,self.format))
+            logger.error("ispec length %d not a multiple of 8 %s" % (size, self.format))
         self.fix = Bits(0, size)  # values of fixed bits
         self.mask = Bits(0, size)  # location of fixed bits
         i = 0
@@ -629,7 +663,7 @@ class ispec(object):
             i = iclass(bs)
         else:
             i.bytes += bs
-        saved_bytes = i.bytes[:-len(bs)]
+        saved_bytes = i.bytes[: -len(bs)]
         i.spec = self
         # set instruction attributes from directives, and then
         # call hook function with instruction as first parameter
@@ -718,7 +752,7 @@ class Formatter(object):
             if isinstance(t, str):
                 t = [(Token.Literal, t)]
             s.extend(t)
-        return s if toks else highlight(s)
+        return s if toks else View.engine.highlight(s)
 
 
 # ispec format parser:
@@ -772,7 +806,7 @@ def ispec_register(x, module):
 def test_parser():
     while 1:
         try:
-            res = raw_input("ispec>")
+            res = input("ispec>")
             s = ispec(res, mnemonic="TEST")
             print(s.ast)
             return s

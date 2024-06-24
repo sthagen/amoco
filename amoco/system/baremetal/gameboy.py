@@ -6,7 +6,10 @@
 
 import struct
 from amoco.system.memory import MemoryMap
-from amoco.arch.z80 import cpu_gb as cpu
+from amoco.arch.z80.cpu_gb import cpu
+from amoco.logger import Log
+
+logger = Log(__name__)
 
 # define gameboy system:
 card_type = {
@@ -69,6 +72,7 @@ class Cardridge(object):
             return "Accolade"
         if x == 0xA4:
             return "Konami"
+        return "unknown licensee: %s" % hex(x)
 
     def supergb(self):
         return ord(self.data[0x146:0x147]) == 3
@@ -177,3 +181,4 @@ class z80GB(object):
             return block
         if func is not None:
             return func
+        return None

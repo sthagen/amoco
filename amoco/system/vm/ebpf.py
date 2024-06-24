@@ -22,7 +22,7 @@ class eBPF(RawExec):
     # load the program into virtual memory (populate the mmap dict)
     def load_binary(self):
         p = self.bin
-        if p != None:
+        if p is not None:
             self.mmap.write(0, p.read())
         self.mmap.newzone(cpu.r10)
         self.mmap.newzone(cpu.reg("#ctx", 64))
@@ -38,7 +38,7 @@ class eBPF(RawExec):
 
     def blockhelper(self, block):
         block._helper = block_helper_
-        return CoreExec.blockhelper(self, block)
+        return super().blockhelper(block)
 
     def funchelper(self, f):
         return f
@@ -50,6 +50,7 @@ class eBPF(RawExec):
 def block_helper_(block, m):
     # update block.misc based on semantics:
     sta, sto = block.support
+    return (sta, sto)
 
 
 # HOOKS DEFINED HERE :

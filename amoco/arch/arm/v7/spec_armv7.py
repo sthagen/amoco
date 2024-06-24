@@ -6,16 +6,25 @@
 
 # spec_xxx files are providers for instruction objects.
 
-from amoco.arch.arm.v7 import env
+from amoco.arch.core import ispec, InstructionError
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_cpu_state,
+    type_system,
+)
+from . import env
+from .utils import ARMExpandImm, DecodeShift
 
-from amoco.arch.core import *
-from .utils import *
 
 # ------------------------------------------------------
 # amoco ARMv7++ instruction specs:
 # ------------------------------------------------------
 
 ISPECS = []
+
+
+# ruff: noqa: F811
 
 
 @ispec("32[ .cond(4) 00 1 0000 S Rn(4) Rd(4) imm12(12) ]", mnemonic="AND")
@@ -159,7 +168,7 @@ def A_default(obj, S, Rd, imm5, Rm):
     if imm5 == 0:
         shift_n = 32 if obj.mnemonic in ("LSR", "ASR") else imm5
         if obj.mnemonic == "ROR":
-            raise InstructionError(obj) # see RRX
+            raise InstructionError(obj)  # see RRX
     else:
         shift_n = imm5
     obj.operands = [obj.d, obj.m, env.cst(shift_n, 5)]
@@ -295,7 +304,7 @@ def A_sreg(obj, Rn, imm5, stype, Rm):
 @ispec("32[ .cond(4) 00 0 1001 1 Rn(4) 0000 Rs(4) 0 stype(2) 1 Rm(4) ]", mnemonic="TEQ")
 @ispec("32[ .cond(4) 00 0 1000 1 Rn(4) 0000 Rs(4) 0 stype(2) 1 Rm(4) ]", mnemonic="TST")
 def A_sreg(obj, Rn, Rs, stype, Rm):
-    if 15 in (Rd, Rm, Rs):
+    if 15 in (Rn, Rm, Rs):
         raise InstructionError(obj)
     obj.n = env.regs[Rn]
     obj.m = DecodeShift(stype, env.regs[Rm], env.regs[Rs])
@@ -368,14 +377,38 @@ def A_deref(obj, P, U, W, Rn, Rt, imm12):
         obj.type = type_control_flow
 
 
-@ispec("32[ .cond(4) 011   P U 0   W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="LDR")
-@ispec("32[ .cond(4) 011   P U 1   W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="LDRB")
-@ispec("32[ .cond(4) 011   P U 0   W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="STR")
-@ispec("32[ .cond(4) 011   P U 1   W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="STRB")
-@ispec("32[ .cond(4) 011 0=P U 0 1=W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="LDRT")
-@ispec("32[ .cond(4) 011 0=P U 1 1=W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="LDRBT")
-@ispec("32[ .cond(4) 011 0=P U 0 1=W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="STRT")
-@ispec("32[ .cond(4) 011 0=P U 1 1=W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]", mnemonic="STRBT")
+@ispec(
+    "32[ .cond(4) 011   P U 0   W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="LDR",
+)
+@ispec(
+    "32[ .cond(4) 011   P U 1   W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="LDRB",
+)
+@ispec(
+    "32[ .cond(4) 011   P U 0   W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="STR",
+)
+@ispec(
+    "32[ .cond(4) 011   P U 1   W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="STRB",
+)
+@ispec(
+    "32[ .cond(4) 011 0=P U 0 1=W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="LDRT",
+)
+@ispec(
+    "32[ .cond(4) 011 0=P U 1 1=W 1 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="LDRBT",
+)
+@ispec(
+    "32[ .cond(4) 011 0=P U 0 1=W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="STRT",
+)
+@ispec(
+    "32[ .cond(4) 011 0=P U 1 1=W 0 Rn(4) Rt(4) imm5(5) stype(2) 0 Rm(4) ]",
+    mnemonic="STRBT",
+)
 def A_deref(obj, P, U, W, Rn, Rt, imm5, stype, Rm):
     obj.n = env.regs[Rn]
     obj.t = env.regs[Rt]
@@ -402,8 +435,12 @@ def A_deref(obj, P, U, W, Rn, Rt, imm5, stype, Rm):
         obj.type = type_control_flow
 
 
-@ispec("32[ .cond(4) 000 P U 1 W 0 Rn(4) Rt(4) imm4H(4) 1101 imm4L(4) ]", mnemonic="LDRD")
-@ispec("32[ .cond(4) 000 P U 1 W 0 Rn(4) Rt(4) imm4H(4) 1111 imm4L(4) ]", mnemonic="STRD")
+@ispec(
+    "32[ .cond(4) 000 P U 1 W 0 Rn(4) Rt(4) imm4H(4) 1101 imm4L(4) ]", mnemonic="LDRD"
+)
+@ispec(
+    "32[ .cond(4) 000 P U 1 W 0 Rn(4) Rt(4) imm4H(4) 1111 imm4L(4) ]", mnemonic="STRD"
+)
 def A_deref(obj, P, U, W, Rn, Rt, imm4H, imm4L):
     obj.n = env.regs[Rn]
     obj.t = env.regs[Rt]
@@ -486,14 +523,38 @@ def A_default(obj, Rn, Rd, Rt):
     obj.type = type_data_processing
 
 
-@ispec("32[ .cond(4) 000   P U 1   W 1 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]", mnemonic="LDRH")
-@ispec("32[ .cond(4) 000   P U 1   W 1 Rn(4) Rt(4) imm4H(4) 1101 imm4L(4) ]", mnemonic="LDRSB")
-@ispec("32[ .cond(4) 000   P U 1   W 1 Rn(4) Rt(4) imm4H(4) 1111 imm4L(4) ]", mnemonic="LDRSH")
-@ispec("32[ .cond(4) 000   P U 1   W 0 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]", mnemonic="STRH")
-@ispec("32[ .cond(4) 000 0=P U 1 1=W 1 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]", mnemonic="LDRHT")
-@ispec("32[ .cond(4) 000 0=P U 1 1=W 1 Rn(4) Rt(4) imm4H(4) 1101 imm4L(4) ]", mnemonic="LDRSBT")
-@ispec("32[ .cond(4) 000 0=P U 1 1=W 1 Rn(4) Rt(4) imm4H(4) 1111 imm4L(4) ]", mnemonic="LDRSHT")
-@ispec("32[ .cond(4) 000 0=P U 1 1=W 0 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]", mnemonic="STRHT")
+@ispec(
+    "32[ .cond(4) 000   P U 1   W 1 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]",
+    mnemonic="LDRH",
+)
+@ispec(
+    "32[ .cond(4) 000   P U 1   W 1 Rn(4) Rt(4) imm4H(4) 1101 imm4L(4) ]",
+    mnemonic="LDRSB",
+)
+@ispec(
+    "32[ .cond(4) 000   P U 1   W 1 Rn(4) Rt(4) imm4H(4) 1111 imm4L(4) ]",
+    mnemonic="LDRSH",
+)
+@ispec(
+    "32[ .cond(4) 000   P U 1   W 0 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]",
+    mnemonic="STRH",
+)
+@ispec(
+    "32[ .cond(4) 000 0=P U 1 1=W 1 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]",
+    mnemonic="LDRHT",
+)
+@ispec(
+    "32[ .cond(4) 000 0=P U 1 1=W 1 Rn(4) Rt(4) imm4H(4) 1101 imm4L(4) ]",
+    mnemonic="LDRSBT",
+)
+@ispec(
+    "32[ .cond(4) 000 0=P U 1 1=W 1 Rn(4) Rt(4) imm4H(4) 1111 imm4L(4) ]",
+    mnemonic="LDRSHT",
+)
+@ispec(
+    "32[ .cond(4) 000 0=P U 1 1=W 0 Rn(4) Rt(4) imm4H(4) 1011 imm4L(4) ]",
+    mnemonic="STRHT",
+)
 def A_deref(obj, P, U, W, Rn, Rt, imm4H, imm4L):
     obj.n = env.regs[Rn]
     obj.t = env.regs[Rt]
@@ -518,8 +579,12 @@ def A_deref(obj, P, U, W, Rn, Rt, imm4H, imm4L):
 @ispec("32[ .cond(4) 000   P U 0   W 1 Rn(4) Rt(4) 0000 1111 Rm(4) ]", mnemonic="LDRSH")
 @ispec("32[ .cond(4) 000   P U 0   W 0 Rn(4) Rt(4) 0000 1011 Rm(4) ]", mnemonic="STRH")
 @ispec("32[ .cond(4) 000 0=P U 0 1=W 1 Rn(4) Rt(4) 0000 1011 Rm(4) ]", mnemonic="LDRHT")
-@ispec("32[ .cond(4) 000 0=P U 0 1=W 1 Rn(4) Rt(4) 0000 1101 Rm(4) ]", mnemonic="LDRSBT")
-@ispec("32[ .cond(4) 000 0=P U 0 1=W 1 Rn(4) Rt(4) 0000 1111 Rm(4) ]", mnemonic="LDRSHT")
+@ispec(
+    "32[ .cond(4) 000 0=P U 0 1=W 1 Rn(4) Rt(4) 0000 1101 Rm(4) ]", mnemonic="LDRSBT"
+)
+@ispec(
+    "32[ .cond(4) 000 0=P U 0 1=W 1 Rn(4) Rt(4) 0000 1111 Rm(4) ]", mnemonic="LDRSHT"
+)
 @ispec("32[ .cond(4) 000 0=P U 0 1=W 0 Rn(4) Rt(4) 0000 1011 Rm(4) ]", mnemonic="STRHT")
 def A_deref(obj, P, U, W, Rn, Rt, Rm):
     obj.n = env.regs[Rn]
@@ -651,7 +716,7 @@ def A_sreg(obj, Rn, Rd, imm5, tb, Rm):
 @ispec("32[ 1111 01 0 1 U 0=R 01 Rn(4) 1111 imm12(12) ]", mnemonic="PLDW")
 def instr_PLx(obj, U, R, Rn, imm12):
     obj.n = env.regs[Rn]
-    obj.imm32 = cst(imm12, 32)
+    obj.imm32 = env.cst(imm12, 32)
     obj.add = U == 1
     obj.is_pldw = R == 0
     obj.operands = [obj.n, obj.imm32]
@@ -659,7 +724,9 @@ def instr_PLx(obj, U, R, Rn, imm12):
 
 
 @ispec("32[ 1111 01 1 1 U 1=R 01 Rn(4) 1111 imm5(5) stype(2) 0 Rm(4) ]", mnemonic="PLD")
-@ispec("32[ 1111 01 1 1 U 0=R 01 Rn(4) 1111 imm5(5) stype(2) 0 Rm(4) ]", mnemonic="PLDW")
+@ispec(
+    "32[ 1111 01 1 1 U 0=R 01 Rn(4) 1111 imm5(5) stype(2) 0 Rm(4) ]", mnemonic="PLDW"
+)
 def instr_PLx(obj, U, R, Rn, imm5, stype, Rm):
     obj.n = env.regs[Rn]
     obj.m = DecodeShift(stype, env.regs[Rm], env.cst(imm5, 5))
@@ -674,7 +741,7 @@ def instr_PLx(obj, U, R, Rn, imm5, stype, Rm):
 @ispec("32[ 1111 0100 U 101 Rn(4) 1111 imm12(12) ]", mnemonic="PLI")
 def instr_PLx(obj, U, Rn, imm12):
     obj.n = env.regs[Rn]
-    obj.imm32 = cst(imm12, 32)
+    obj.imm32 = env.cst(imm12, 32)
     obj.add = U == 1
     obj.operands = [obj.n, obj.imm32]
     obj.type = type_cpu_state

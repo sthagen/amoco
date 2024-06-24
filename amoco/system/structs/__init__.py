@@ -21,7 +21,9 @@ condition or on the value of previously decoded fields of the same structure.
 
 For example, module :mod:`system.imx6` uses these metaclasses to decode
 HAB structures and thus allow for precise verifications on how the boot stages
-are verified. The HAB Header class is thus defined by::
+are verified. The HAB Header class is thus defined by:
+
+.. code-block:: python
 
    @StructDefine(\"\"\"
    B :  tag
@@ -36,7 +38,7 @@ are verified. The HAB Header class is thus defined by::
                self.unpack(data,offset)
        @staticmethod
        def token_ver_format(k,x,cls=None):
-           return highlight([(Token.Literal,"%d.%d"%(x>>4,x&0xf))])
+           return [(Token.Literal,"%d.%d"%(x>>4,x&0xf))]
 
 Here, the :class:`StructDefine` decorator is used to provide the definition of
 fields of the HAB Header structure to the HAB_Header class.
@@ -44,7 +46,9 @@ fields of the HAB Header structure to the HAB_Header class.
 The *tag* :class:`Field` is an unsigned byte and the :class:`StructFormatter`
 utilities inherited by the class set it as a :meth:`name_formatter` allow
 the decoded byte value from data to be represented by its constant name.
-This name is obtained from constants defined with::
+This name is obtained from constants defined with:
+
+.. code-block:: python
 
     with Consts('tag'):
         HAB_TAG_IVT = 0xd1
@@ -61,7 +65,9 @@ The *length* field is a bigendian short integer with default formatter,
 and the *version* field is an unsigned byte with a dedicated formatter
 function that extracts major/minor versions from the byte nibbles.
 
-This allows to decode and print the structure from provided data::
+This allows to decode and print the structure from provided data:
+
+.. code-block:: python
 
     In [3]: h = HAB_Header(\'\\xd1\\x00\\x0a\\x40\')
     In [4]: print(h)
@@ -71,14 +77,50 @@ This allows to decode and print the structure from provided data::
     version             :4.0
 """
 
+import struct
 import pyparsing as pp
 from collections import defaultdict
 
-from .core import *
-from .fields import *
-from .formatters import *
+from amoco.logger import Log
+
+logger = Log(__name__)
+logger.debug("loading module")
+
+from .core import StructCore, StructureError, Alltypes
+from .fields import Field, RawField, BitField, BitFieldEx
+from .fields import VarField, Leb128Field, CntField, BindedField
+from .utils import read_leb128, read_uleb128, write_uleb128, write_sleb128
+from .formatters import Consts, StructFormatter
+from .formatters import (
+    default_formatter,
+    token_default_fmt,
+    token_address_fmt,
+    token_version_fmt,
+    token_bytes_fmt,
+    token_constant_fmt,
+    token_mask_fmt,
+    token_name_fmt,
+    token_flag_fmt,
+    token_datetime_fmt,
+)
+
+_cls = (struct, StructCore, StructureError, Consts)
+_leb = (read_leb128, read_uleb128, write_uleb128, write_sleb128)
+_fmt = (
+    token_default_fmt,
+    token_address_fmt,
+    token_version_fmt,
+    token_bytes_fmt,
+    token_constant_fmt,
+    token_mask_fmt,
+    token_name_fmt,
+    token_flag_fmt,
+    token_datetime_fmt,
+)
+
 
 # ------------------------------------------------------------------------------
+
 
 class StructDefine(object):
     """
@@ -88,7 +130,9 @@ class StructDefine(object):
 
     A decorator instance is created by parsing an input "format"
     string that is ultimately used to define the fields the StructCore class
-    on which it is called. The overall idea is to write::
+    on which it is called. The overall idea is to write:
+
+    .. code-block:: python
 
         @StructDefine(fmt)
         class Name(StructCore):
@@ -174,7 +218,7 @@ class StructDefine(object):
     }
     integer = pp.Regex(r"[0-9][0-9]*")
     integer.setParseAction(lambda r: int(r[0]))
-    bitslen = pp.Group(pp.Suppress("#") + pp.delimitedList(integer,delim='/'))
+    bitslen = pp.Group(pp.Suppress("#") + pp.delimitedList(integer, delim="/"))
     symbol = pp.Regex(r"[A-Za-z_][A-Za-z0-9_/$]*")
     special = pp.Regex(r"[.%][A-Za-z_][A-Za-z0-9_/]*")
     comment = pp.Suppress(";") + pp.restOfLine
@@ -215,15 +259,15 @@ class StructDefine(object):
                     f_cls = BitField
                     # In that case, the name should also be a "list" of
                     # names spearated by '/':
-                    f_name = f_name.split('/')
+                    f_name = f_name.split("/")
                 elif isinstance(f_count, str):
                     if f_count.startswith("~"):
                         f_cls = VarField
-                        if len(f_count)==2 and (f_count[1:2] in "bBhHiI"):
+                        if len(f_count) == 2 and (f_count[1:2] in "bBhHiI"):
                             f_cls = CntField
                     elif f_count.startswith("."):
                         f_cls = BindedField
-                    elif f_count=="%leb128":
+                    elif f_count == "%leb128":
                         f_cls = Leb128Field
                         f_count = 0
                 f_align = self.alignments[f_type]
@@ -231,17 +275,17 @@ class StructDefine(object):
                 f_cls = Field
                 if isinstance(f_count, list):
                     f_cls = BitFieldEx
-                    f_name = f_name.split('/')
+                    f_name = f_name.split("/")
                 f_type = kargs.get(f_type, f_type)
                 f_align = 0
             f = f_cls(f_type, f_count, f_name, f_order, f_align, f_comment)
             # if this is a bitfield with only one subfield, we want to
             # concatenate it with a previous bitfield if possible:
-            if f_cls in (BitField,BitFieldEx):
-                if len(f_count)==len(f_name)==1:
-                    if len(self.fields)>0:
+            if f_cls in (BitField, BitFieldEx):
+                if len(f_count) == len(f_name) == 1:
+                    if len(self.fields) > 0:
                         prev = self.fields[-1]
-                        if isinstance(prev,(BitField,BitFieldEx)):
+                        if isinstance(prev, (BitField, BitFieldEx)):
                             try:
                                 prev.concat(f)
                             except TypeError:
@@ -283,7 +327,7 @@ class UnionDefine(StructDefine):
             s = [f.size() for f in cls.fields]
             cls.union = s.index(max(s))
         except AttributeError:
-            pass
+            logger.warning("can't compute union size")
         cls.packed = self.packed
         cls.fkeys = defaultdict(default_formatter)
         return cls
@@ -293,13 +337,14 @@ class UnionDefine(StructDefine):
 
 
 def TypeDefine(newname, typebase, typecount=0, align_value=0):
-    t = StructFactory(newname, "%s : _"%typebase)
+    t = StructFactory(newname, "%s : _" % typebase)
     t.typedef = True
     if typecount:
         t.fields[0].count = typecount
     if align_value:
         t.fields[0]._align_value = align_value
     return t
+
 
 # ------------------------------------------------------------------------------
 
@@ -323,7 +368,7 @@ class StructMaker(StructFormatter):
         if len(d.fields) > 1:
             logger.warning("can't define more than one field at a time...")
         f = d.fields[0]
-        if atvalue != None:
+        if atvalue is not None:
             s = f.pack(atvalue)
             offset = indata.find(s)
             logger.info("value found at offset %d" % offset)
@@ -375,7 +420,7 @@ def UnionFactory(name, fmt, **kargs):
 
 # Standard types:
 
-uint8  = TypeDefine("uint8" ,"B")
-uint16 = TypeDefine("uint16","H")
-uint32 = TypeDefine("uint32","I")
-uint64 = TypeDefine("uint64","Q")
+uint8 = TypeDefine("uint8", "B")
+uint16 = TypeDefine("uint16", "H")
+uint32 = TypeDefine("uint32", "I")
+uint64 = TypeDefine("uint64", "Q")

@@ -13,11 +13,16 @@ The backward module of amoco implements backward CFG recovery strategies.
 # Copyright (C) 2006-2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .forward import *
+from amoco.config import conf
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
+
+from amoco import cfg
+from amoco import code
+from amoco.signals import SIG_FUNC
+from .forward import target, fforward, lforward
 
 
 class fbackward(lforward):
@@ -52,7 +57,7 @@ class fbackward(lforward):
               the PC expression evaluated from composition of
               *first-parent-path* symbolic maps.
         """
-        pc = self.prog.cpu.PC()
+        pc = self.prog.cpu.getPC()
         n = node
         mpc = pc
         while True:
@@ -70,20 +75,14 @@ class fbackward(lforward):
         if n.data.misc[code.tag.FUNC_START]:
             if node.data.misc[code.tag.FUNC_END]:
                 n.data.misc[code.tag.FUNC_START] += 1
-            try:
-                fsym = n.data.misc["callers"][0].data.misc["to"].ref
-            except (IndexError, TypeError, AttributeError):
-                fsym = "f"
             func = code.func(n.c)
             logger.verbose("function %s created" % func)
             if mpc._is_mem and len(mpc.mods) > 0:
                 pol = (
-                    "(assume_no_aliasing)"
-                    if self.policy["frame-aliasing"] == False
-                    else ""
+                    "(assume_no_aliasing)" if not self.policy["frame-aliasing"] else ""
                 )
                 logger.verbose("pc is memory aliased in %s %s" % (str(func), pol))
-                if self.policy["frame-aliasing"] == False:
+                if not self.policy["frame-aliasing"]:
                     mpc.mods = []
             func.map[pc] = mpc
             for cn in n.data.misc["callers"]:
@@ -133,7 +132,7 @@ class lbackward(fforward):
         SIG_FUNC.emit(args=f)
         m = f.makemap()
         # get pc @ node:
-        pc = self.prog.cpu.PC()
+        pc = self.prog.cpu.getPC()
         mpc = m(pc)
         T = target(mpc, node).expand()
         # if a target is defined here, it means that func cfg is not completed
@@ -183,7 +182,7 @@ class lbackward(fforward):
             :class:`target`:
               the PC expression evaluated from current node map.
         """
-        pc = self.prog.cpu.PC()
+        pc = self.prog.cpu.getPC()
         alf = conf.Cas.noaliasing
         cxl = conf.Cas.complexity
         conf.Cas.complexity = self.policy["complexity"]

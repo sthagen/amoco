@@ -4,9 +4,6 @@
 # Copyright (C) 2022 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from . import env
-
 # import generic PowerPC ISA (book E):
 
-from amoco.arch.ppc32.spec_booke import *
-
+from amoco.arch.ppc32.spec_booke import *  # noqa: F403

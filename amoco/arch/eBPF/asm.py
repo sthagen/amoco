@@ -4,7 +4,8 @@
 # Copyright (C) 2017 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
+from .env import pc
+from amoco.cas.expressions import top, tst, oper, OP_ASR, OP_LTU, OP_GEU
 
 
 def __npc(i_xxx):

@@ -4,9 +4,18 @@
 # Copyright (C) 2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
+from .env import wreg, wregs, status, statuss, prod, tablat, tblptr
+from .env import pc, nf, ovf, cf, dcf, zf, tos, stkptr, bsr, bsrs
+from .env import cst, mem, top, tst, comp, bit1, bit0
 
-from amoco.cas.utils import *
+from amoco.cas.utils import (
+    AddWithCarry,
+    SubWithBorrow,
+    ROLWithCarry,
+    ROL,
+    RORWithCarry,
+    ROR,
+)
 
 # handlers for preinc/postinc/postdec virtual registers:
 # ------------------------------------------------------
@@ -247,7 +256,6 @@ def i_CPFSEQ(i, fmap):
 
 def i_CPFSGT(i, fmap):
     fmap[pc] = fmap(pc) + i.length
-    dst = i.dst
     src = i.src
     res = fmap(src - wreg)
     fmap[pc] = tst(res > 0, fmap(pc) + 2, fmap(pc))
@@ -429,14 +437,14 @@ def i_MOVWF(i, fmap):
 def i_MULLW(i, fmap):
     fmap[pc] = fmap(pc) + i.length
     k = i.imm
-    res = fmap(wreg ** k)
+    res = fmap(wreg**k)
     fmap[prod] = res
 
 
 def i_MULWF(i, fmap):
     fmap[pc] = fmap(pc) + i.length
     src = i.imm
-    res = fmap(wreg ** src)
+    res = fmap(wreg**src)
     fmap[prod] = res
 
 

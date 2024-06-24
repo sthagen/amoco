@@ -4,7 +4,7 @@
 # Copyright (C) 2006-2011 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.cas.expressions import *
+from amoco.cas.expressions import comp, cst
 
 
 def LSL_C(x, shift):
@@ -47,7 +47,7 @@ def ROR_C(x, shift):
     assert shift >= 0
     n = x.size
     m = shift % n
-    res = LSR(x, m) | LSL(x, N - m)
+    res = LSR(x, m) | LSL(x, n - m)
     return (res, res.bit(n - 1))
 
 

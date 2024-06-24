@@ -14,7 +14,7 @@ the :mod:`amoco.system` package.
 
 """
 
-from amoco.arch.core import Bits,DecodeError,InstructionError
+from amoco.arch.core import Bits, DecodeError, InstructionError
 from amoco.system.memory import MemoryMapError
 from amoco.ui.views import execView, dataView
 from amoco.logger import Log
@@ -42,7 +42,7 @@ class CoreExec(object):
              in :class:`system.core.shellcode`.
 
         cpu: reference to the architecture cpu module, which provides a generic
-             access to the PC() program counter and
+             access to the getPC() program counter and
              obviously the CPU registers and disassembler.
 
         OS:  optional reference to the OS associated to the child Task.
@@ -108,7 +108,7 @@ class CoreExec(object):
             mmap = self.state.mmap
         maxlen = self.cpu.disassemble.maxlen
         if isinstance(vaddr, int):
-            addr = self.cpu.cst(vaddr, self.cpu.PC().size)
+            addr = self.cpu.cst(vaddr, self.cpu.getPC().size)
         elif vaddr._is_ext:
             vaddr.address = vaddr
             return vaddr
@@ -118,6 +118,9 @@ class CoreExec(object):
             istr = mmap.read(vaddr, maxlen)
         except MemoryMapError as e:
             logger.verbose("vaddr %s is not mapped" % addr)
+            raise DecodeError(e)
+        except InstructionError as e:
+            logger.verbose("no instruction at vaddr %s" % addr)
             raise DecodeError(e)
         else:
             if len(istr) <= 0:
@@ -135,29 +138,41 @@ class CoreExec(object):
             return None
         else:
             if i.address is None:
-                i.address = kargs.get("label",addr)
+                i.address = kargs.get("label", addr)
             return i
 
-    def symbol_for(self,address):
+    def symbol_for(self, address, abi=None):
         info = None
+        if abi is not None:
+            D = abi.demangle
+        else:
+
+            def D(name):
+                return name
+
+        if isinstance(address, self.cpu.cst):
+            address = address.v
         if address in self.bin.variables:
             info = self.bin.variables[address]
-            if isinstance(info,tuple):
+            if isinstance(info, tuple):
                 info = info[0]
-            info = "$%s"%info
+                if (limit := info.find("@")) != -1:
+                    info = D(info[:limit]) + info[limit:]
+                else:
+                    info = "$%s" % D(info)
         elif address in self.bin.functions:
             info = self.bin.functions[address]
-            if isinstance(info,tuple):
+            if isinstance(info, tuple):
                 info = info[0]
-            info = "<%s>"%info
+            info = "<%s>" % D(info)
         elif self.OS and (address in self.OS.symbols):
             info = self.OS.symbols[address]
-            info = "#%s"%info
+            info = "#%s" % D(info)
         return info or ""
 
-    def segment_for(self,address,stype=None):
+    def segment_for(self, address, stype=None):
         s = self.bin.getinfo(address)[0]
-        return s.name if hasattr(s,'name') else ""
+        return s.name if hasattr(s, "name") else ""
 
     def getx(self, loc, size=8, sign=False):
         """
@@ -174,7 +189,7 @@ class CoreExec(object):
             x = getattr(self.cpu, loc)
         elif isinstance(loc, int):
             endian = self.cpu.get_data_endian()
-            psz = self.cpu.PC().size
+            psz = self.cpu.getPC().size
             addr = self.cpu.cst(loc, psz)
             x = self.cpu.mem(addr, size, endian=endian)
         else:
@@ -198,7 +213,7 @@ class CoreExec(object):
             size = x.size
         elif isinstance(loc, int):
             endian = self.cpu.get_data_endian()
-            psz = self.cpu.PC().size
+            psz = self.cpu.getPC().size
             x = self.cpu.mem(self.cpu.cst(loc, psz), size, endian=endian)
         else:
             x = loc
@@ -253,7 +268,7 @@ class CoreExec(object):
     def get_cstr(self, loc):
         "get null-terminated unsigned char array of current state(loc)"
         A = [self.get_uint8(loc)]
-        while A[-1]!=0:
+        while A[-1] != 0:
             loc += 1
             A.append(self.get_uint8(loc))
         return bytes(A)
@@ -261,10 +276,12 @@ class CoreExec(object):
 
 # ------------------------------------------------------------------------------
 
+
 class DefineStub(object):
     """
     decorator to define a stub for the given 'refname' library function.
     """
+
     def __init__(self, obj, refname, default=False):
         self.obj = obj
         self.ref = refname
@@ -284,12 +301,14 @@ class DefineStub(object):
 
 # ------------------------------------------------------------------------------
 
+
 class BinFormat(object):
     """
     Base class for binary format API, just to define default attributes
     and recommended properties. See elf.py, pe.py and macho.py for example of
     child classes.
     """
+
     is_ELF = False
     is_PE = False
     is_MachO = False
@@ -324,7 +343,8 @@ class shellcode(BinFormat):
     provides zero information about the targeted architecture, entrypoints, or
     any other data or code dependencies.
     """
-    def __init__(self,dataio):
+
+    def __init__(self, dataio):
         self.data = dataio
 
     @property
@@ -371,9 +391,9 @@ class DataIO(object):
 
     def size(self):
         stay = self.f.tell()
-        self.f.seek(0,2)
+        self.f.seek(0, 2)
         sz = self.f.tell()
-        self.f.seek(stay,0)
+        self.f.seek(stay, 0)
         return sz
 
     def read(self, size=-1):
@@ -452,6 +472,7 @@ class DataIO(object):
     def softspace(self):
         return self.f.softspace
 
+
 # ------------------------------------------------------------------------------
 def read_program(filename):
     """
@@ -480,7 +501,7 @@ def read_program(filename):
         p = elf.Elf(f)
         logger.info("ELF format detected")
         return p
-    except (elf.StructureError,elf.ElfError):
+    except (elf.StructureError, elf.ElfError):
         f.seek(0)
         logger.debug("ElfError raised for %s" % f.name)
 
@@ -491,7 +512,7 @@ def read_program(filename):
         p = pe.PE(f)
         logger.info("PE format detected")
         return p
-    except (pe.StructureError,pe.PEError):
+    except (pe.StructureError, pe.PEError):
         f.seek(0)
         logger.debug("PEError raised for %s" % f.name)
 
@@ -502,7 +523,7 @@ def read_program(filename):
         p = macho.MachO(f)
         logger.info("Mach-O format detected")
         return p
-    except (macho.StructureError,macho.MachOError):
+    except (macho.StructureError, macho.MachOError):
         f.seek(0)
         logger.debug("MachOError raised for %s" % f.name)
 
@@ -513,12 +534,12 @@ def read_program(filename):
         p = coff.COFF(f)
         logger.info("COFF format detected")
         return p
-    except (coff.StructureError,coff.COFFError):
+    except (coff.StructureError, coff.COFFError):
         f.seek(0)
         logger.debug("COFFError raised for %s" % f.name)
 
     try:
-        from amoco.system.structs.HEX import HEX,HEXError
+        from amoco.system.structs.HEX import HEX, HEXError
 
         # open file as a HEX object:
         p = HEX(f)
@@ -529,7 +550,8 @@ def read_program(filename):
         logger.debug(" HEX FormatError raised for %s" % f.name)
 
     try:
-        from amoco.system.structs.SREC import SREC,SRECError
+        from amoco.system.structs.SREC import SREC, SRECError
+
         # open file as a SREC object:
         p = SREC(f)
         logger.info("SREC format detected")
@@ -561,12 +583,13 @@ class DefineLoader(object):
     Here, a reference to function loader_x86 is stored in
     LOADERS['elf'][elf.EM_386].
     """
+
     LOADERS = {}
 
     def __init__(self, fmt, name=""):
         self.fmt = fmt
         self.name = name
-        if not self.fmt in self.LOADERS:
+        if self.fmt not in self.LOADERS:
             self.LOADERS[self.fmt] = {}
         if self.name in self.LOADERS[self.fmt]:
             logger.warning(
@@ -605,13 +628,13 @@ def load_program(f, cpu=None, loader=None):
 
     logger.verbose("--- define loaders ---")
 
-    from . import raw
-    from . import linux32
-    from . import linux64
-    from . import win32
-    from . import win64
-    from . import osx
-    from . import baremetal
+    from . import raw  # noqa: F401
+    from . import linux32  # noqa: F401
+    from . import linux64  # noqa: F401
+    from . import win32  # noqa: F401
+    from . import win64  # noqa: F401
+    from . import osx  # noqa: F401
+    from . import baremetal  # noqa: F401
 
     logger.verbose("--- detect binary format ---")
 
@@ -624,10 +647,10 @@ def load_program(f, cpu=None, loader=None):
         try:
             x = Loaders[loader](p)
         except KeyError:
-            logger.error("loader '%s' not found"%loader)
+            logger.error("loader '%s' not found" % loader)
             return None
         except Exception:
-            logger.error("error in loader '%s', fallback to autodetect"%loader)
+            logger.error("error in loader '%s', fallback to autodetect" % loader)
     if x is None:
         if p.is_ELF:
             try:
@@ -661,7 +684,8 @@ def load_program(f, cpu=None, loader=None):
             x = Loaders["raw"](p, cpu)
 
     if x is not None:
-        logger.info("a new task is loaded %s"%str(x.view))
+        info = "%s > %s" % (x.bin.filename, x.__class__.__name__)
+        logger.info("a new task is loaded %s" % info)
     else:
         logger.info("no loader for this program, trying baremetal...")
         if p.is_ELF:

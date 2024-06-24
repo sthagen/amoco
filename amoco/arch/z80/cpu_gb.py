@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from amoco.arch.z80.asm import *
-
-# expose "microarchitecture" (instructions semantics)
-uarch = dict(filter(lambda kv: kv[0].startswith("i_"), locals().items()))
+from amoco.arch.z80 import env
+from amoco.arch.z80 import asm
 
 # import specifications:
-from amoco.arch.core import instruction, disassembler
+from amoco.arch.core import instruction, disassembler, CPU
 
 instruction_gb = type("instruction_gb", (instruction,), {})
-instruction_gb.set_uarch(uarch)
 
 from amoco.arch.z80.formats import GB_full
 
@@ -20,10 +17,4 @@ from amoco.arch.z80 import spec_gb
 
 disassemble = disassembler([spec_gb], iclass=instruction_gb)
 
-
-def PC(state=None):
-    return pc
-
-
-def get_data_endian():
-    return 1
+cpu = CPU(env, asm, disassemble, env.pc)

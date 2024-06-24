@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc
+from amoco.cas.expressions import is_reg_pc, is_reg_flags, is_reg_stack
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # The SH-2A, SH-2A-FPU Software Manual, rev. 3.00, July 8 2005.
@@ -83,4 +85,6 @@ BOVE = slc(IBNR, 13, 1, "BOVE")
 BE0 = slc(IBNR, 14, 1, "BE0")
 BE1 = slc(IBNR, 15, 1, "BE1")
 
-registers = R+[SR,pc,npc]
+registers = R + [SR, pc, npc]
+
+internals = {}

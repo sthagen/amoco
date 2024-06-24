@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
 from amoco.arch.core import Formatter
 
 
@@ -34,7 +33,7 @@ def accessbank(i):
 
 def adr(i):
     x = str(i.operands[0])
-    return x + ", fast" if i.misc["fast"] == True else x
+    return x + ", fast" if i.misc["fast"] is True else x
 
 
 def tblrw(i):

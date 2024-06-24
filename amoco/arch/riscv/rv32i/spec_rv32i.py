@@ -6,7 +6,15 @@
 
 from amoco.arch.riscv.rv32i import env
 
-from amoco.arch.core import *
+from amoco.arch.core import ispec
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_cpu_state,
+    type_system,
+)
+
+# ruff: noqa: F811
 
 # -------------------------------------------------------
 # instruction RISC-V decoders
@@ -139,7 +147,7 @@ def riscv_csr(obj, imm, rs1, rd):
     r1 = env.x[rs1]
     dst = env.x[rd]
     csr = env.csr[imm]
-    obj.operands = [dst, r1]
+    obj.operands = [dst, r1, csr]
     obj.type = type_cpu_state
 
 

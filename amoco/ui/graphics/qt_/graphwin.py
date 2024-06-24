@@ -4,39 +4,51 @@
 # Copyright (C) 2020 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from math import sin,cos,pi,pow,radians
+from math import sin, cos, pi, pow, radians
 
-from PySide6.QtCore import (Qt,
-                            Signal,
-                            QPointF,
-                            QRectF,
-                           )
-from PySide6.QtGui import (QPen,
-                           QColor,
-                           QBrush,
-                           QFont,
-                           QPainterPath,
-                           QPolygonF,
-                           QAction,
-                          )
-from PySide6.QtWidgets import (QGraphicsScene,
-                               QGraphicsView,
-                               QGraphicsItem,
-                               QGraphicsEllipseItem,
-                               QGraphicsTextItem,
-                               QGraphicsDropShadowEffect,
-                               QGraphicsPathItem,
-                               QMenu,
-                              )
+from PySide6.QtCore import (
+    Qt,
+    QPointF,
+    QRectF,
+)
+from PySide6.QtGui import (
+    QPen,
+    QColor,
+    QBrush,
+    QFont,
+    QPainterPath,
+    QPainter,
+    QPolygonF,
+    QAction,
+)
+from PySide6.QtWidgets import (
+    QGraphicsScene,
+    QGraphicsView,
+    QGraphicsItem,
+    QGraphicsEllipseItem,
+    QGraphicsRectItem,
+    QGraphicsTextItem,
+    QGraphicsDropShadowEffect,
+    QGraphicsPathItem,
+    QMenu,
+)
 
-__all__ = ['createFuncGraph','GraphScene','GraphView',
-           'Node_basic', 'Node_codeblock', 'Edge_basic']
+__all__ = [
+    "createFuncGraph",
+    "GraphScene",
+    "GraphView",
+    "Node_basic",
+    "Node_codeblock",
+    "Edge_basic",
+]
+
 
 def createFuncGraph(self, f):
-     sc = GraphScene(f.view.layout)
-     w = GraphView(sc)
-     sc.Draw()
-     return w
+    sc = GraphScene(f.view.layout)
+    w = GraphView(sc)
+    sc.Draw()
+    return w
+
 
 class GraphScene(QGraphicsScene):
     def __init__(self, sug=None):
@@ -48,6 +60,7 @@ class GraphScene(QGraphicsScene):
         self.sug = sug
         if self.sug:
             from grandalf.routing import route_with_lines
+
             self.sug.route_edge = route_with_lines
             self.sug.dx, self.sug.dy = 5, 5
             self.sug.dirvh = 0
@@ -74,7 +87,9 @@ class GraphScene(QGraphicsScene):
             # move edge start/end to CX points:
             e.view.update_points()
 
+
 # ------------------------------------------------------------------------------
+
 
 class GraphView(QGraphicsView):
     def __init__(self, scene):
@@ -109,26 +124,28 @@ class GraphView(QGraphicsView):
             return
         self.scale(scaleFactor, scaleFactor)
 
+
 # ------------------------------------------------------------------------------
+
 
 class Node_basic(QGraphicsItem):
     """Node_basic is a QGraphicsItem that represents a function node, used as
-       a view for a cfg.node of code.func or code.xfunc object.
+    a view for a cfg.node of code.func or code.xfunc object.
 
-       The object is movable, focusable and accepts mouse-over events.
-       It is composed of a shadowed circle of radius *r* colored in white,
-       and a blue label set as the function's name.
+    The object is movable, focusable and accepts mouse-over events.
+    It is composed of a shadowed circle of radius *r* colored in white,
+    and a blue label set as the function's name.
 
-       Arguments:
+    Arguments:
 
-           name (string): string used as label for the Node_basic.label.
-           r (int): radius of the Node_basic.el circle.
+        name (string): string used as label for the Node_basic.label.
+        r (int): radius of the Node_basic.el circle.
 
-       Attributes:
+    Attributes:
 
-           el (QGraphicsEllipseItem): the cicle object
-           label (QGraphicsTextItem): the label object
-           cx (list[Edge_basic]): list of edges views associated with the node
+        el (QGraphicsEllipseItem): the cicle object
+        label (QGraphicsTextItem): the label object
+        cx (list[Edge_basic]): list of edges views associated with the node
     """
 
     def __init__(self, name="?", r=10):
@@ -201,26 +218,28 @@ class Node_basic(QGraphicsItem):
     def print_out(self):
         print("Triggered")
 
+
 # ------------------------------------------------------------------------------
+
 
 class Node_codeblock(QGraphicsItem):
     """Node_codeblock is a QGraphicsItem that represents a block node, used as a
-       view for a cfg.node of code.block object.
+    view for a cfg.node of code.block object.
 
-       The object is movable, focusable and accepts mouse-over events.
-       It is composed of a shadowed rectangle (QGraphicsRectItem) that contains
-       a text block (QGraphicsTextItem) with the assembly instructions formatted
-       as an Html source for pretty printing.
+    The object is movable, focusable and accepts mouse-over events.
+    It is composed of a shadowed rectangle (QGraphicsRectItem) that contains
+    a text block (QGraphicsTextItem) with the assembly instructions formatted
+    as an Html source for pretty printing.
 
-       Arguments:
+    Arguments:
 
-           html (str): the HTML representation of a block of instructions
+        html (str): the HTML representation of a block of instructions
 
-       Attributes:
+    Attributes:
 
-           codebox (QGraphicsRectItem): the shadowed rectangular background
-           code (QGraphicsTextItem): the assembly text of the input block
-           cx (list[Edge_basic]): list of edges views associated with the node
+        codebox (QGraphicsRectItem): the shadowed rectangular background
+        code (QGraphicsTextItem): the assembly text of the input block
+        cx (list[Edge_basic]): list of edges views associated with the node
     """
 
     def __init__(self, block):
@@ -288,28 +307,30 @@ class Node_codeblock(QGraphicsItem):
                 e.update_points()
         return super().itemChange(change, value)
 
+
 # ------------------------------------------------------------------------------
+
 
 class Edge_basic(QGraphicsItem):
     """Edge_basic is a QGraphicsItem that represents an edge, used as a
-       view for a cfg.Edge object.
+    view for a cfg.Edge object.
 
-       The object is not movable or focusable but should accept mouse
-       events to highlight or tag the nodes of this edge.
-       It is composed of a QGraphicsPathItem build from self.points
-       and a triangular arrow head positioned at the border of the node's
-       view. It should react to nodes n0/n1 displacements.
+    The object is not movable or focusable but should accept mouse
+    events to highlight or tag the nodes of this edge.
+    It is composed of a QGraphicsPathItem build from self.points
+    and a triangular arrow head positioned at the border of the node's
+    view. It should react to nodes n0/n1 displacements.
 
-       Arguments:
+    Arguments:
 
-           n0 (Node_codeblock|Node_basic): first node (from).
-           n1 (Node_codeblock|Node_basic): second node (to).
+        n0 (Node_codeblock|Node_basic): first node (from).
+        n1 (Node_codeblock|Node_basic): second node (to).
 
-        Attributes:
+     Attributes:
 
-            n (list): the list of node views.
-            points (list[QPointF]): list of points for routing the edge.
-            head (QPolygonF): the arrow head polygon.
+         n (list): the list of node views.
+         points (list[QPointF]): list of points for routing the edge.
+         head (QPolygonF): the arrow head polygon.
     """
 
     def __init__(self, n0, n1):
@@ -347,7 +368,7 @@ class Edge_basic(QGraphicsItem):
 
     def getqgp(self):
         """Compute the QGraphicsPathItem that represents the open
-           polygonal line going through all self.points.
+        polygonal line going through all self.points.
         """
         qpp = QPainterPath(self.points[0])
         for p in self.points[1:]:

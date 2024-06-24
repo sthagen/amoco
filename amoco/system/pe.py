@@ -16,25 +16,29 @@ executable formats.
 from amoco.system.core import BinFormat
 from amoco.system.structs import struct, Consts, StructFormatter, StructDefine
 from amoco.system.structs import token_datetime_fmt, StructureError
-from amoco.ui.render import Token, highlight
+from amoco.ui.render import Token
 
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
 
-class PEError(Exception):
+
+class PEError(StructureError):
     """
     PEError is raised whenever PE object instance fails
     to decode required structures.
     """
+
     def __init__(self, message):
         self.message = message
 
     def __str__(self):
         return str(self.message)
 
+
 # ------------------------------------------------------------------------------
+
 
 class PE(BinFormat):
     """
@@ -55,6 +59,7 @@ class PE(BinFormat):
         variables (list): a list of global variables' names (if found.)
         tls (TlsTable): the Thead local Storage table (or None.)
     """
+
     is_PE = True
 
     @property
@@ -100,31 +105,32 @@ class PE(BinFormat):
         self.functions = self.__functions()
         self.variables = self.__variables()
         self.tls = self.__tls()
-        #self.resources = self.__ResourceTable()
+        # self.resources = self.__ResourceTable()
 
     def checksec(self):
         R = {}
         dllc = self.Opt.DllCharacteristics
         dynamic_base = dllc & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE
-        R['ASLR'] = "DYNAMIC_BASE" if dynamic_base else False
+        R["ASLR"] = "DYNAMIC_BASE" if dynamic_base else False
         he = dllc & IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA
         if he:
-            R['ASLR'] = "HIGH_ENTROPY_VA"
-        R['CFG'] = (dllc & IMAGE_DLLCHARACTERISTICS_GUARD_CF)!=0
-        R['DEP'] = (dllc & IMAGE_DLLCHARACTERISTICS_NX_COMPAT)!=0
-        R['Isolation'] = (dllc & IMAGE_DLLCHARACTERISTICS_NO_ISOLATION)==0
-        R['SEH'] = (dllc & IMAGE_DLLCHARACTERISTICS_NO_SEH)==0
+            R["ASLR"] = "HIGH_ENTROPY_VA"
+        R["CFG"] = (dllc & IMAGE_DLLCHARACTERISTICS_GUARD_CF) != 0
+        R["DEP"] = (dllc & IMAGE_DLLCHARACTERISTICS_NX_COMPAT) != 0
+        R["Isolation"] = (dllc & IMAGE_DLLCHARACTERISTICS_NO_ISOLATION) == 0
+        R["SEH"] = (dllc & IMAGE_DLLCHARACTERISTICS_NO_SEH) == 0
         cth = self.__LoadConfigTable()
         if cth:
-            if cth.SEHandlerCount>0:
-                R['Safe-SEH'] = True
-            if (cth.GuardFlags & IMAGE_GUARD_RF_INSTRUMENTED) and\
-               ((cth.GuardFlags & IMAGE_GUARD_RF_ENABLE) or\
-                (cth.GuardFlags & IMAGE_GUARD_RF_STRICT)):
-                   R['RFG'] = True
+            if cth.SEHandlerCount > 0:
+                R["Safe-SEH"] = True
+            if (cth.GuardFlags & IMAGE_GUARD_RF_INSTRUMENTED) and (
+                (cth.GuardFlags & IMAGE_GUARD_RF_ENABLE)
+                or (cth.GuardFlags & IMAGE_GUARD_RF_STRICT)
+            ):
+                R["RFG"] = True
         else:
-            R['Safe-SEH'] = False
-            R['RFG'] = False
+            R["Safe-SEH"] = False
+            R["RFG"] = False
         return R
 
     def locate(self, addr, absolute=False):
@@ -158,7 +164,7 @@ class PE(BinFormat):
         "get section bytes from given virtual address to end of mapped section."
         s, offset = self.locate(addr, absolute)
         if s is None:
-            logger.debug("address 0x%08x not mapped"%addr)
+            logger.debug("address 0x%08x not mapped" % addr)
             raise ValueError
         return self.loadsegment(s, raw=True)[offset:]
 
@@ -321,7 +327,9 @@ class PE(BinFormat):
             s.pfx = tmp
         return "\n".join(ss)
 
+
 # ------------------------------------------------------------------------------
+
 
 @StructDefine(
     """
@@ -522,8 +530,8 @@ with Consts("Subsystem"):
     IMAGE_SUBSYSTEM_NATIVE_WINDOWS = 8
     IMAGE_SUBSYSTEM_WINDOWS_CE_GUI = 9
     IMAGE_SUBSYSTEM_EFI_APPLICATION = 10
-    IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER= 11
-    IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER= 12
+    IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER = 11
+    IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER = 12
     IMAGE_SUBSYSTEM_EFI_ROM = 13
     IMAGE_SUBSYSTEM_XBOX = 14
     IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION = 16
@@ -643,6 +651,7 @@ with Consts("SectionHdr.Characteristics"):
 # COFF Relocations
 # ------------------------------------------------------------------------------
 
+
 @StructDefine(
     """
 I : RVA
@@ -674,6 +683,7 @@ class COFFLineNumber(StructFormatter):
             return self.Type
         else:
             logger.warning("invalid COFF Line Number entry")
+            return None
 
 
 IMAGE_SYM_UNDEF = 0
@@ -682,6 +692,7 @@ IMAGE_SYM_DEBUG = -2
 
 # COFF Symbol table
 # ------------------------------------------------------------------------------
+
 
 class COFFSymbolTable(object):
     def __init__(self, data=None):
@@ -715,11 +726,9 @@ B   : NumberOfAuxSymbols
 )
 class StdSymbolRecord(StructFormatter):
     def __init__(self, data=None, offset=0):
+        self.func_formatter(_Name=lambda k, x, cls: [(Token.Name, self.Name)])
         self.func_formatter(
-            _Name=lambda k, x, cls: highlight([(Token.Name, self.Name)])
-        )
-        self.func_formatter(
-            StorageClass=lambda k, x, cls: highlight([(Token.Name, self.classname())])
+            StorageClass=lambda k, x, cls: [(Token.Name, self.classname())]
         )
         self.AuxSymbols = []
         if data:
@@ -738,7 +747,7 @@ class StdSymbolRecord(StructFormatter):
             elif (
                 self.StorageClass == 2
                 and self.SectionNumber == IMAGE_SYM_UNDEF
-                and Self.Value == 0
+                and self.Value == 0
             ):
                 auxclass = AuxWeakExternal
             elif self.StorageClass == 103:
@@ -794,6 +803,7 @@ class StdSymbolRecord(StructFormatter):
             return (t1, t2)
         except IndexError:
             logger.warning("invalid Type field (was: %d)" % self.Type)
+            return None
 
     def classname(self):
         c = {
@@ -913,6 +923,7 @@ class AuxSectionDefinition(StructFormatter):
 # COFF String table
 # ------------------------------------------------------------------------------
 
+
 class COFFStringTable(object):
     def __init__(self, data=None):
         if data is None:
@@ -921,20 +932,26 @@ class COFFStringTable(object):
         self.strings = data[4 : self.length].split("\0")
         self.strings.pop()
 
+
 # ------------------------------------------------------------------------------
 
+
 class AttributeCertificateTable(object):
-    NotImplementedError
+    # not implemented
+    pass
 
 
 class AttributeCertificate(StructFormatter):
     pass
 
+
 # ------------------------------------------------------------------------------
+
 
 class DelayLoadImportTable(object):
     def __init__(self, data):
         raise NotImplementedError
+
 
 @StructDefine(
     """
@@ -954,7 +971,9 @@ class DelayLoadDirectoryTable(StructFormatter):
         if data:
             self.unpack(data, offset)
 
+
 # ------------------------------------------------------------------------------
+
 
 @StructDefine(
     """
@@ -980,7 +999,9 @@ class ExportTable(StructFormatter):
         if data:
             self.unpack(data, offset)
 
+
 # ------------------------------------------------------------------------------
+
 
 class ImportTable(object):
     def __init__(self, data, offset=0):
@@ -990,7 +1011,7 @@ class ImportTable(object):
             try:
                 e = ImportTableEntry(data, offset)
             except StructureError:
-                logger.error("bad ImportTableEntry at offset=%d"%offset)
+                logger.error("bad ImportTableEntry at offset=%d" % offset)
                 return
             else:
                 if e.isNULL():
@@ -998,6 +1019,7 @@ class ImportTable(object):
                 self.dlls.append(e)
                 offset += len(e)
         logger.warning("NULL Import entry not found")
+
 
 @StructDefine(
     """
@@ -1055,6 +1077,7 @@ class NameTableEntry(object):
 
 # ------------------------------------------------------------------------------
 
+
 @StructDefine(
     """
 I : RawDataStartVA
@@ -1104,6 +1127,7 @@ with Consts("GuardFlags"):
     IMAGE_GUARD_CF_FUNCTION_TABLE_SIZE_MASK = 0xF0000000
     IMAGE_GUARD_CF_FUNCTION_TABLE_SIZE_SHIFT = 28
 
+
 @StructDefine(
     """
 I : Characteristics
@@ -1143,36 +1167,58 @@ class LoadConfigTable(StructFormatter):
         size = {0x20B: 64, 0x10B: 32}[magic]
         self.elsize = size // 8
         if magic == 0x20B:
-            for i in (7,8,9,10,11,12,16,17,18,19,20,21,22,23,
-                      26,27,28,29):
+            for i in (
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                26,
+                27,
+                28,
+                29,
+            ):
                 self.fields[i].typename = "Q"
-        self.flag_formatter("Characteristics",
-                            "ProcessHeapFlags",
-                            "GuardFlags",
-                           )
+        self.flag_formatter(
+            "Characteristics",
+            "ProcessHeapFlags",
+            "GuardFlags",
+        )
         if data:
             self.unpack(data)
 
+
 # -----------------------------------------------------------------------------
+
 
 class ResourceTable(object):
     def __init__(self, data, offset=0):
         self.Tables = {}
         try:
-            t = ResourceDirectoryTable(data,offset,ResourceDirectoryTypeEntry)
-            self.Tables['Type'] = t
+            t = ResourceDirectoryTable(data, offset, ResourceDirectoryTypeEntry)
+            self.Tables["Type"] = t
             offset += t.fullsize()
-            t = ResourceDirectoryTable(data,offset)
-            self.Tables['Name'] = t
+            t = ResourceDirectoryTable(data, offset)
+            self.Tables["Name"] = t
             offset += t.fullsize()
-            t = ResourceDirectoryTable(data,offset)
-            self.Tables['Language'] = t
+            t = ResourceDirectoryTable(data, offset)
+            self.Tables["Language"] = t
             offset += t.fullsize()
         except Exception as e:
             raise PEError(e)
 
+
 @StructDefine(
-"""
+    """
 I : Characteristics
 I : TimeDateStamp
 H : MajorVersion
@@ -1188,38 +1234,38 @@ class ResourceDirectoryTable(StructFormatter):
         if data:
             self.unpack(data, offset)
             offset += self.size()
-            self.parse_entries(data,offset,etype)
+            self.parse_entries(data, offset, etype)
 
-    def parse_entries(self,data,offset=0,etype=None):
+    def parse_entries(self, data, offset=0, etype=None):
         if etype is None:
             etype = ResourceDirectoryEntry
         assert ResourceDirectoryEntry in etype.mro()
         self.NameEntries = []
         for i in range(self.NumberOfNameEntries):
-            e = etype(data,offset)
+            e = etype(data, offset)
             offset += e.size()
             self.NameEntries.append(e)
         self.IDEntries = []
         for i in range(self.NumberOfIDEntries):
-            e = etype(data,offset)
+            e = etype(data, offset)
             offset += e.size()
             self.IDEntries.append(e)
 
     def fullsize(self):
         elsz = ResourceDirectoryEntry.size()
         nb = len(self.NameEntries) + len(self.IDEntries)
-        return self.size()+(elsz*nb)
+        return self.size() + (elsz * nb)
 
 
 with Consts("ResourceType"):
     RT_CURSOR = 1
     RT_BITMAP = 2
-    RT_ICON   = 3
-    RT_MENU   = 4
+    RT_ICON = 3
+    RT_MENU = 4
     RT_DIALOG = 5
     RT_STRING = 6
     RT_FONTDIR = 7
-    RT_FONT   = 8
+    RT_FONT = 8
     RT_ACCELERATOR = 9
     RT_RCDATA = 10
     RT_MESSAGETABLE = 11
@@ -1234,8 +1280,9 @@ with Consts("ResourceType"):
     RT_HTML = 23
     RT_MANIFEST = 24
 
+
 @StructDefine(
-"""
+    """
 I : DataRVA
 I : Size
 I : Codepage
@@ -1245,8 +1292,9 @@ I : reserved
 class ResourceDataEntry(StructFormatter):
     pass
 
+
 @StructDefine(
-"""
+    """
 I : Name_or_ID
 I : DataEntry
 """
@@ -1256,27 +1304,27 @@ class ResourceDirectoryEntry(StructFormatter):
         self.address_formatter("DataEntry")
         if data:
             self.unpack(data, offset)
+
     def is_leaf(self):
-        return self.DataEntry>>31 == 0
+        return self.DataEntry >> 31 == 0
+
     def SubdirectoryOffset(self):
         if not self.is_leaf():
-            return self.DataEntry&0x7fffffff
+            return self.DataEntry & 0x7FFFFFFF
         return None
+
 
 class ResourceDirectoryTypeEntry(ResourceDirectoryEntry):
     def __init__(self, data, offset=0):
         self.fields[0].name = "ResourceType"
         self.name_formatter("ResourceType")
-        super().__init__(data,offset)
+        super().__init__(data, offset)
 
 
 @StructDefine(
-"""
+    """
 s*~H : String
 """
 )
 class ResourceDirectoryString(StructFormatter):
     pass
-
-
-

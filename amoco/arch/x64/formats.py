@@ -39,12 +39,14 @@ def opers(i):
     s = []
     for op in i.operands:
         if op._is_mem:
-            if i.misc['rip_rel']:
-                op = i.misc['rip_rel']
+            if i.misc["rip_rel"]:
+                op = i.misc["rip_rel"]
             elif op.a.base._is_reg and op.a.base.etype & regtype.PC:
                 if i.address is not None:
-                    op = op.__class__(i.address+i.length+op.a.disp,op.size,seg=op.a.seg)
-                    i.misc['rip_rel'] = op
+                    op = op.__class__(
+                        i.address + i.length + op.a.disp, op.size, seg=op.a.seg
+                    )
+                    i.misc["rip_rel"] = op
             s.append((Token.Memory, deref(op)))
         elif op._is_cst:
             if i.misc["imm_ref"] is not None:

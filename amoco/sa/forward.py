@@ -25,12 +25,16 @@ to assume that function calls always return to the *link address* of the call.
 # Copyright (C) 2006-2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .lsweep import *
-from amoco.cas.mapper import mapper
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
+
+from amoco import cfg
+from amoco import code
+from amoco.signals import SIG_TRGT
+from .lsweep import lsweep
+from amoco.cas.mapper import mapper
 
 # -----------------------------------------------------------------------------
 
@@ -156,7 +160,7 @@ class fforward(lsweep):
             :class:`target`: the evaluated PC expression.
         """
         m = mapper()
-        pc = self.prog.cpu.PC()
+        pc = self.prog.cpu.getPC()
         m[pc] = node.data.address
         pc = (node.map(pc)).eval(m)
         return target(pc, node).expand()
@@ -191,7 +195,7 @@ class fforward(lsweep):
         vtx.misc[code.tag.FUNC_START] += 1
         parent.misc[code.tag.FUNC_CALL] += 1
         if vtx.misc["func"]:
-            logger.verbose("function %s called" % b.misc["func"])
+            logger.verbose("function %s called" % vtx.misc["func"])
             vtx = cfg.node(vtx.misc["func"])
             e = parent.c.add_edge(cfg.link(parent, vtx, data=econd))
             vtx = e.v[1]
@@ -244,7 +248,7 @@ class fforward(lsweep):
             for x in self.itercfg(loc):
                 pass
         except KeyboardInterrupt:
-            pass
+            logger.info("keyboard interrupt in getcfg")
         return self.G
 
     def itercfg(self, loc=None):
@@ -327,7 +331,7 @@ class lforward(fforward):
                the PC expression evaluated from the parent
                symbolic map and the current node's map.
         """
-        pc = self.prog.cpu.PC()
+        pc = self.prog.cpu.getPC()
         if parent is None:
             pc = node.map.use((pc, node.data.address))(pc)
         else:

@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc
+from amoco.cas.expressions import is_reg_pc, is_reg_stack
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # The SPARC Architecture Manual Version 8, Revision SAV080SI9308.
@@ -92,7 +94,11 @@ def hi(r):
 def lo(r):
     return slc(r, 0, 10)
 
+
 registers = r + [psr, y, pc, npc]
+
+is_reg_pc(pc)
+is_reg_stack(sp)
 
 # psr symbols:
 impl = slc(psr, 28, 4)  # implementation
@@ -124,3 +130,5 @@ qne = slc(fsr, 13, 1)  # fsr FQ not empty
 fcc = slc(fsr, 10, 2)  # condition codes (=,<,>,?)
 aexc = slc(fsr, 5, 5)  # IEEE 754 fp exceptions accumulator
 cexc = slc(fsr, 0, 5)  # current IEEE 754 exception
+
+internals = {}

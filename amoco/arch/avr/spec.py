@@ -11,8 +11,16 @@ from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
-from amoco.arch.core import *
+from amoco.arch.core import ispec
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+    type_system,
+    type_other,
+)
 from amoco.arch.avr import env
+
+# ruff: noqa: F811
 
 ISPECS = []
 

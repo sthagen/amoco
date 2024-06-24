@@ -4,13 +4,21 @@
 # Copyright (C) 2006-2011 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
-from amoco.cas.utils import *
+from .env import rsp, rbp, rip, rbx, rcx, rdx, rax, rsi, rdi, rflags
+from .env import ebx, ecx, edx, eax, esi, edi
+from .env import cx, dx, ax, al, ah
+from .env import ss, cs, cr, r11
+from .env import cf, zf, of, af, pf, sf, df, bit0, bit1
+from .env import composer, tst, cst, top, mem, ext
+from amoco.cas.utils import AddWithCarry, SubWithBorrow, ROL, ROR
+from amoco.cas.utils import ROLWithCarry, RORWithCarry
 
 from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
+
+
 # ------------------------------------------------------------------------------
 # utils :
 def push(fmap, x):
@@ -459,7 +467,7 @@ def i_POP(i, fmap):
 
 def i_CALL(i, fmap):
     pc = fmap[rip] + i.length
-    fmap[rip] = pc # needed because op0 can depend on rip
+    fmap[rip] = pc  # needed because op0 can depend on rip
     push(fmap, pc)
     op1 = fmap(i.operands[0])
     op1 = op1.signextend(pc.size)
@@ -875,14 +883,13 @@ def i_LEA(i, fmap):
     fmap[rip] = fmap[rip] + i.length
     op1 = i.operands[0]
     op2 = i.operands[1]
-    adr = op2.addr(fmap)
-    if op1.size == 32:
-        adr = adr[0:32].zeroextend(64)
-        op1 = op1.x
-    elif op1.size == 16:
-        adr = adr[0:16]
-    else:
-        adr = adr.zeroextend(64)
+    # "effective" address is agnostic of segmentation/pagination
+    # so we don't want to compute op2.addr(fmap)
+    adr = fmap(op2.a.base + op2.a.disp)
+    if op1.size > adr.size:
+        adr = adr.zeroextend(op1.size)
+    elif op1.size < adr.size:
+        adr = adr[0 : op1.size]
     fmap[op1] = adr
 
 
@@ -1161,11 +1168,11 @@ def i_IMUL(i, fmap):
     if len(i.operands) == 1:
         src = i.operands[0]
         m, d = {8: (al, ah), 16: (ax, dx), 32: (eax, edx), 64: (rax, rdx)}[src.size]
-        r = fmap(m ** src)
+        r = fmap(m**src)
     elif len(i.operands) == 2:
         dst, src = i.operands
         m = d = dst
-        r = fmap(dst ** src)
+        r = fmap(dst**src)
     else:
         dst, src, imm = i.operands
         m = d = dst
@@ -1184,7 +1191,7 @@ def i_MUL(i, fmap):
     fmap[rip] = fmap[rip] + i.length
     src = i.operands[0]
     m, d = {8: (al, ah), 16: (ax, dx), 32: (eax, edx), 64: (rax, rdx)}[src.size]
-    r = fmap(m ** src)
+    r = fmap(m**src)
     lo = r[0 : src.size]
     hi = r[src.size : r.size]
     fmap[cf] = hi != 0
@@ -1367,7 +1374,7 @@ def i_TZCNT(i, fmap):
 def i_BT(i, fmap):
     logger.warning("%s semantic is not defined" % i.mnemonic)
     fmap[rip] = fmap[rip] + i.length
-    #dst, src = i.operands
+    # dst, src = i.operands
     fmap[cf] = top(1)
 
 
@@ -1820,6 +1827,6 @@ def i_XLATB(i, fmap):
     _b = fmap(mem(rbx + al.zeroextend(64), 8))
     fmap[al] = _b
 
+
 i_ENDBR32 = i_NOP
 i_ENDBR64 = i_NOP
-

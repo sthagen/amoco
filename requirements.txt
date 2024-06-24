@@ -1,8 +1,9 @@
 traitlets
-pygments
+rich
 pyparsing
-grandalf
-crysp
+crysp>=1.2
+grandalf>=0.8
 click
-blessed
+sqlalchemy
+ccrawl>=1.9
 prompt_toolkit>=3.0.28

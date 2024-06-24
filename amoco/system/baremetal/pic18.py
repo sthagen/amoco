@@ -4,10 +4,13 @@
 # Copyright (C) 2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.core import *
+from amoco.system.memory import MemoryMap
 from amoco.code import tag
+from amoco.logger import Log
 
-import amoco.arch.pic.cpu_pic18f46k22 as cpu
+logger = Log(__name__)
+
+from amoco.arch.pic.cpu_pic18f46k22 import cpu
 
 
 class PIC18(object):
@@ -53,6 +56,7 @@ class PIC18(object):
             return self.seqhelper(kargs["seq"])
         if "block" in kargs:
             return self.blockhelper(kargs["block"])
+        return None
 
     # seqhelper provides arch-dependent information to amoco.main classes
     def seqhelper(self, seq):

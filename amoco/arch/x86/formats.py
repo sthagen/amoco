@@ -20,7 +20,7 @@ def mnemo(i):
     return [(Token.Mnemonic, "{: <12}".format(mnemo.lower()))]
 
 
-def deref(op,seg_indicator=""):
+def deref(op, seg_indicator=""):
     assert op._is_mem
     s = {8: "byte ptr ", 16: "word ptr ", 64: "qword ptr ", 128: "xmmword ptr "}.get(
         op.size, ""
@@ -41,9 +41,11 @@ def opers(i):
         if op._is_mem:
             if op.a.base._is_reg and op.a.base.etype & regtype.PC:
                 if i.address is not None:
-                    op = op.__class__(i.address+i.length+op.a.disp,op.size,seg=op.a.seg)
-            indicator = "%s:"%op.a.seg if i.misc["segreg"] is not None else ""
-            s.append((Token.Memory, deref(op,indicator)))
+                    op = op.__class__(
+                        i.address + i.length + op.a.disp, op.size, seg=op.a.seg
+                    )
+            indicator = "%s:" % op.a.seg if i.misc["segreg"] is not None else ""
+            s.append((Token.Memory, deref(op, indicator)))
         elif op._is_cst:
             if i.misc["imm_ref"] is not None:
                 s.append((Token.Address, str(i.misc["imm_ref"])))
@@ -54,8 +56,8 @@ def opers(i):
         elif op._is_reg:
             s.append((Token.Register, str(op)))
         elif op._is_ptr:
-            indicator = "%s:"%op.seg if op.seg is not None else ""
-            s.append((Token.Constant, "%s%s"%(indicator,op.base)))
+            indicator = "%s:" % op.seg if op.seg is not None else ""
+            s.append((Token.Constant, "%s%s" % (indicator, op.base)))
         s.append((Token.Literal, ", "))
     if len(s) > 0:
         s.pop()
@@ -267,7 +269,7 @@ def op_includes_reg(op):
         return op_includes_reg(op.l) or op_includes_reg(op.r)
     if op._is_mem:
         return op_includes_reg(op.a.base)
-    NEVER
+    raise RuntimeError(op)
 
 
 def default_eqn_parser(op):
@@ -291,8 +293,7 @@ def default_eqn_parser(op):
             # by computing an erroneous addend
             return "%s+%s" % (op.r.ref, op.l.ref), None, 0
         else:
-            NON_REGRESSION_FOUND
-            return "%s+%s" % (op.l.ref, op.r.ref), None, 0
+            raise RuntimeError("NON REGRESSION FOUND")
     elif op.op.symbol == "+" and op.l._is_lab and op.r._is_cst:
         # L+cte
         return op.l.ref, None, op.r.value
@@ -391,7 +392,7 @@ def default_deref(b, d):
             elif b.op.symbol == "+" and b.l._is_eqn and b.l.op.symbol == "*":
                 b0, b1, b2 = reg_name(b.r), reg_name(b.l.l), int(b.l.r)
             else:
-                NEVER
+                raise RuntimeError(b)
         if not hasattr(d, "_is_cst"):
             # displacement is an integer
             d0, d1 = "", int(d)
@@ -402,7 +403,7 @@ def default_deref(b, d):
             else:
                 d0 = "%s-%s" % (label, label_dif)
         else:
-            NEVER
+            raise RuntimeError(d)
         return None, (b0, b1, b2), (d0, d1)
 
 
@@ -451,7 +452,7 @@ def intel_deref(op):
     if s is None:
         # Base includes a register; disp may include labels
         (b0, b1, b2), (d0, d1) = b, d
-        if b2 != None:
+        if b2 is not None:
             b1 = "%s*%s" % (b1, b2)
         if b0 is None:
             b = b1
@@ -734,14 +735,14 @@ def att_mnemo_binutils(i):
             elif m[4:] == "rp":
                 m = m[:4] + "p"
             else:
-                NEVER
+                raise RuntimeError(i)
         elif len(i.operands) == 2 and str(i.operands[0]) != "st0":
             if m[4:] == "":
                 m = m + "r"
             elif m[4:] == "r":
                 m = m[:4]
             else:
-                NEVER
+                raise RuntimeError(i)
     return att_mnemo_generic(i, s, m)
 
 
@@ -758,14 +759,14 @@ def att_mnemo_macosx(i):
             elif m[4:] == "rp":
                 m = m[:4] + "p"
             else:
-                NEVER
+                raise RuntimeError(i)
         elif len(i.operands) == 2 and str(i.operands[0]) != "st0":
             if m[4:] == "":
                 m = m + "r"
             elif m[4:] == "r":
                 m = m[:4]
             else:
-                NEVER
+                raise RuntimeError(i)
     return att_mnemo_generic(i, s, m)
 
 

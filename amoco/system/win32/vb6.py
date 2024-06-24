@@ -4,7 +4,7 @@
 # Copyright (C) 2017 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.system.structs import Consts, StructFormatter
+from amoco.system.structs import Consts, StructDefine, StructFormatter
 
 
 class VB6Object(object):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
+from .env import mmregs, R, pc, top
 from amoco.arch.core import Formatter
 from amoco.ui.render import Token, TokenListJoin
 
@@ -31,13 +31,16 @@ def listjoin(*args):
 
     return subf
 
+
 def opport(pos):
     def port(i, pos=pos):
         o = i.operands[pos]
         assert o._is_cst
         r = mmregs[o.value]
-        return [(Token.Register,"{0}".format(r))]
+        return [(Token.Register, "{0}".format(r))]
+
     return port
+
 
 def opreg(pos):
     def subr(i, pos=pos):
@@ -59,7 +62,7 @@ def opcst(pos):
     def subc(i, pos=pos):
         o = i.operands[pos]
         assert o._is_cst
-        if o.sf == False:
+        if o.sf is False:
             return [(Token.Constant, "0x%x" % o)]
         return [(Token.Constant, "%+d" % o)]
 
@@ -99,6 +102,7 @@ def opadr(pos):
 
     return subabs
 
+
 def format_io(i):
     L = []
     for o in i.operands:
@@ -107,11 +111,12 @@ def format_io(i):
             r = o
         elif o._is_cst:
             tt = Token.Memory
-            r = mmregs.get(o.value,top(8))
-        L.append((tt,"{0}".format(r)))
-        L.append((Token.Literal,', '))
+            r = mmregs.get(o.value, top(8))
+        L.append((tt, "{0}".format(r)))
+        L.append((Token.Literal, ", "))
     L.pop()
     return L
+
 
 def format_mem(i):
     s = i.misc["mem"]

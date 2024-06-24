@@ -11,9 +11,15 @@ from amoco.logger import Log
 
 logger = Log(__name__)
 logger.debug("loading module")
-from amoco.arch.core import *
+from amoco.arch.core import ispec, InstructionError, pack
+from amoco.arch.core import (
+    type_data_processing,
+    type_control_flow,
+)
 from amoco.arch.dwarf import env
 from amoco.system.utils import read_leb128, read_sleb128
+
+# ruff: noqa: F811
 
 ISPECS = []
 
@@ -76,6 +82,7 @@ def dw_op_leb128(obj, data):
 
 
 for i in range(0x30, 0x50):
+
     @ispec("8>[ {%2x} ]" % i, mnemonic="DW_OP_lit", _num=i - 0x30)
     def dw_op_lit(obj, _num):
         obj.operands = [env.cst(_num, WORD)]
@@ -89,17 +96,6 @@ def dw_op_addr(obj, data):
         raise InstructionError(obj)
     result = data[0:sz]
     obj.operands = [env.cst(result.int(), sz)]
-    obj.bytes += pack(result)
-    obj.type = type_data_processing
-
-
-@ispec("*>[ {f1} enc(8) ~data(*) ]", mnemonic="DW_OP_GNU_encoded_addr")
-def dw_op_gnu(obj, enc, data):
-    sz = env.op_ptr.size
-    if data.size < sz:
-        raise InstructionError(obj)
-    result = XXX
-    obj.operands = [env.cst(XXX.int(), sz)]
     obj.bytes += pack(result)
     obj.type = type_data_processing
 
@@ -136,6 +132,7 @@ def dw_op_const(obj, data):
 
 
 for i in range(0x50, 0x70):
+
     @ispec("8>[ {%2x} ]" % i, mnemonic="DW_OP_reg", _num=i - 0x50)
     def dw_op_reg(obj, _num):
         sz = env.op_ptr.size
@@ -155,6 +152,7 @@ def dw_op_regx(obj, data):
 
 
 for i in range(0x70, 0x90):
+
     @ispec("*>[ {%2x} ~data(*) ]" % i, mnemonic="DW_OP_breg", _num=i - 0x70)
     def dw_op_breg(obj, data, _num):
         data = pack(data)

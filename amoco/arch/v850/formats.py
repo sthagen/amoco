@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from .env import *
+from .env import pc, CONDITION
 from amoco.arch.core import Formatter
 from amoco.ui.render import Token, TokenListJoin
 
@@ -83,7 +83,7 @@ def opcst(pos):
     def subc(i, pos=pos):
         o = i.operands[pos]
         assert o._is_cst
-        if o.sf == False:
+        if not o.sf:
             return [(Token.Constant, "0x%x" % o)]
         return [(Token.Constant, "%+d" % o)]
 

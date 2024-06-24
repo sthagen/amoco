@@ -4,8 +4,11 @@
 # Copyright (C) 2014 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from amoco.arch.avr.env import *
+from amoco.arch.avr.env import sp, pc, mmregs, R, Z
+from amoco.arch.avr.env import cf, zf, nf, vf, sf, hf, tf
+from amoco.cas.expressions import ext, composer, tst, cst, ptr, mem, bit0, bit1, top
 from amoco.cas.mapper import mapper
+
 
 # ------------------------------------------------------------------------------
 # low level functions :
@@ -21,7 +24,7 @@ def _pop_(fmap, _l):
 
 def __pc(f):
     def pcnpc(i, fmap):
-        fmap[pc] = fmap[pc] + i.length//2
+        fmap[pc] = fmap[pc] + i.length // 2
         if len(fmap.conds) > 0:
             cond = fmap.conds.pop()
             m = mapper()
@@ -40,6 +43,7 @@ def __nopc(f):
 
 def __nopc(f):
     return f.__closure__[0].cell_contents
+
 
 # flags for arithmetic operations:
 def __setflags__A(i, fmap, a, b, x, neg=False):
@@ -101,7 +105,8 @@ def i_BREAK(i, fmap):
 def i_IN(i, fmap):
     r, port = i.operands
     port = port.value
-    fmap[r] = fmap(mmregs.get(port,top(r.size)))
+    fmap[r] = fmap(mmregs.get(port, top(r.size)))
+
 
 @__pc
 def i_OUT(i, fmap):
@@ -325,7 +330,7 @@ def i_MUL(i, fmap):
     dst, src = i.operands
     a = fmap(dst)
     b = fmap(src)
-    x = a ** b
+    x = a**b
     fmap[cf] = x[15:16]
     fmap[zf] = x == 0
     fmap[R[0]] = x[0:8]
@@ -501,9 +506,9 @@ def i_SPM(i, fmap):
 @__pc
 def i_LPM(i, fmap):
     try:
-        dst, src = i.operands
+        dst, _ = i.operands
     except ValueError:
-        dst, src = R[0], Z
+        dst, _ = R[0], Z
     fmap[dst] = fmap(Z)
     if i.misc["flg"] == 1:
         fmap[Z] = fmap(Z + 1)
@@ -546,7 +551,7 @@ def i_RET(i, fmap):
 @__pc
 def i_RETI(i, fmap):
     _pop_(fmap, pc)
-    fmap[i_] = bit1
+    fmap[i] = bit1
 
 
 @__pc

@@ -4,9 +4,8 @@
 # Copyright (C) 2022 Axel Tillequin (bdcht3@gmail.com)
 # published under GPLv2 license
 
-from .env import *
+from .env import pc, sp, mem, internals
 
-from amoco.cas.utils import *
 
 # ------------------------------------------------------------------------------
 # helpers and decorators :
@@ -29,6 +28,7 @@ def __npc(i_xxx):
 
 
 def trap(ins, fmap, trapname):
-    fmap.internals["trap"] = trapname
+    internals["trap"] = trapname
 
 
+# TODO

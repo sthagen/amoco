@@ -19,7 +19,7 @@ all provide a common API with:
 
 """
 
-from heapq import heappush
+# from heapq import heappush
 
 from amoco.logger import Log
 
@@ -27,6 +27,7 @@ logger = Log(__name__)
 logger.debug("loading module")
 
 from amoco.ui.views import blockView, funcView
+
 
 # -------------------------------------------------------------------------------
 class acode(object):
@@ -59,8 +60,7 @@ class block(acode):
 
     @property
     def address(self):
-        """address (:class:`cst`): the address of the first instruction in the block.
-        """
+        """address (:class:`cst`): the address of the first instruction in the block."""
         try:
             return self.instr[0].address
         except IndexError:
@@ -88,13 +88,13 @@ class block(acode):
     def __getitem__(self, i):
         """block objects support slicing from given start/stop addresses
 
-           Args:
-               i (slice): start and stop address *within* the block. The
-                          values must match addresses of instructions otherwise
-                          a :exc:`ValueError` exception is raised.
+        Args:
+            i (slice): start and stop address *within* the block. The
+                       values must match addresses of instructions otherwise
+                       a :exc:`ValueError` exception is raised.
 
-           Returns:
-               block: a new block with selected instructions.
+        Returns:
+            block: a new block with selected instructions.
         """
         sta, sto, stp = i.indices(self.length)
         assert stp == 1
@@ -110,8 +110,9 @@ class block(acode):
             )
             return None
         I = self.instr[ista:isto]
-        if len(I) > 0:
-            return block(self.instr[ista:isto])
+        if len(I) == 0:
+            logger.warning("returning an empty block")
+        return block(I)
 
     def cut(self, address):
         """cutting the block at given address will remove instructions after this address,
@@ -139,7 +140,7 @@ class block(acode):
 
     def __str__(self):
         T = self.view._vltable(formatter="Null")
-        return "\n".join([r.show(raw=True, **T.rowparams) for r in T.rows])
+        return self.view.engine.highlighted(T)
 
     def __repr__(self):
         sta, sto = self.support
@@ -149,12 +150,8 @@ class block(acode):
         )
 
     def raw(self):
-        """returns the *raw* bytestring of the block instructions.
-       """
+        """returns the *raw* bytestring of the block instructions."""
         return b"".join([i.bytes for i in self.instr])
-
-    def __cmp__(self, b):
-        return cmp(self.raw(), b.raw())
 
     def __eq__(self, b):
         return self.raw() == b.raw()
@@ -203,8 +200,7 @@ class func(acode):
 
     @property
     def blocks(self):
-        """blocks (list): the list of blocks within the function.
-        """
+        """blocks (list): the list of blocks within the function."""
         return sorted(
             filter(lambda x: x._is_block, [n.data for n in self.cfg.sV]),
             key=lambda x: x.address,
@@ -251,14 +247,12 @@ class tag:
 
     @classmethod
     def list(cls):
-        """get the list of all defined keys
-        """
+        """get the list of all defined keys"""
         return filter(lambda kv: kv[0].startswith("FUNC_"), cls.__dict__.items())
 
     @classmethod
     def sig(cls, name):
-        """symbols for tag keys used to compute the block's signature
-        """
+        """symbols for tag keys used to compute the block's signature"""
         return {
             "cond": "?",
             "func": "F",
@@ -278,3 +272,51 @@ class tag:
 
 def _code_misc_default():
     return 0
+
+
+# ------------------------------------------------------------------------------
+
+
+class callstack(list):
+    def __init__(self, *args, entry, caller, sp=None, symbol=""):
+        self.entry = entry
+        self.caller = caller
+        self.sp = sp
+        self.closed = False
+        self.symbol = symbol
+        super().__init__(*args)
+
+    def __repr__(self):
+        return "%s:%s" % (self.entry, super().__repr__())
+
+    def cursor(self):
+        if len(self) == 0:
+            return self
+        cur = self[-1]
+        if cur.closed:
+            return self
+        return cur.cursor()
+
+    def __eq__(self, other):
+        return (
+            self.entry == other.entry
+            and self.caller == other.caller
+            and self.sp == other.sp
+            and self.closed == other.closed
+            and super().__eq__(self, other)
+        )
+
+    def remove_dups(self):
+        uniq = []
+        while len(self) > 0:
+            v = self.pop()
+            i = len(self) - 1
+            while i >= 0:
+                if v.caller == self[i].caller:
+                    i -= 1
+                else:
+                    break
+            del self[i + 1 :]
+            uniq.insert(0, v)
+        for x in uniq:
+            self.append(x)

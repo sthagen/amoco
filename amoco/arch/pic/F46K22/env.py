@@ -5,7 +5,8 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, slc, cst, mem
+from amoco.cas.expressions import *  # noqa: F403
 
 # reference documentation:
 # PIC18(L)F2X/4XK22 Data Sheet, Microchip Technology Inc.

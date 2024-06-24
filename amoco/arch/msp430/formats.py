@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from .env import *
+from .env import COND, pc, sp, sr
 from amoco.arch.core import Formatter
-from amoco.ui.render import Token, TokenListJoin, highlight
+from amoco.ui.render import Token, TokenListJoin
+from amoco.ui.views import View
 
 
 def mn(m, pad=8):
@@ -137,4 +138,4 @@ def MSP430_synthetic(null, i, toks=False):
         del s[1:-1]
     if toks:
         return s
-    return highlight(s)
+    return View.engine.higlight(s)

@@ -5,7 +5,9 @@
 # published under GPLv2 license
 
 # import expressions:
-from amoco.cas.expressions import *
+from amoco.cas.expressions import reg, is_reg_pc, is_reg_stack
+
+from amoco.cas.expressions import *  # noqa: F403
 
 # symbols from libgcc/unwind-dw2.c :
 # -----------------------------------
@@ -21,3 +23,5 @@ with is_reg_stack:
 stack_elt = reg("stack_elt", 6)
 
 registers = [op_ptr, sp, stack_elt]
+
+internals = {}

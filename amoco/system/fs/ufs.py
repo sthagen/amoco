@@ -1,4 +1,15 @@
-from amoco.system.structs import *
+from amoco.logger import Log
+
+logger = Log(__name__)
+
+from amoco.system.structs import struct, Consts, StructDefine, StructFormatter
+from amoco.system.structs import (
+    token_datetime_fmt,
+    token_mask_fmt,
+    token_constant_fmt,
+    token_name_fmt,
+)
+
 
 SUPERBLOCK_SIZE = 2048
 BBLOCK = 0

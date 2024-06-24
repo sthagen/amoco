@@ -6,7 +6,18 @@
 
 # spec_xxx files are providers for instruction objects.
 
-from .utils import *
+from . import env
+from amoco.logger import Log
+
+logger = Log(__name__)
+
+from amoco.arch.core import pack
+from amoco.arch.core import type_data_processing
+
+# ruff: noqa: F405
+# ruff: noqa: F811
+
+from .utils import *  # noqa: F403
 
 # ------------------------------------------------------
 # amoco SSE instruction specs:
@@ -16,6 +27,7 @@ ISPECS = []
 
 # NO pfx:
 # -------
+
 
 # (PACKED SINGLE)
 # xmm, xmm/m128
@@ -105,6 +117,7 @@ def sse_ps(obj, Mod, REG, RM, data):
 
 # (SCALAR SINGLE)
 
+
 # xmm, xmm/m32
 @ispec_ia32("*>[ {0f}{2e} /r ]", mnemonic="UCOMISS")
 @ispec_ia32("*>[ {0f}{2f} /r ]", mnemonic="COMISS")
@@ -134,6 +147,7 @@ def sse_ps(obj, Mod, REG, RM, data):
 
 
 # moves:
+
 
 # mmx, r/m32  no prefix
 # r/m32, mmx  no prefix
@@ -420,6 +434,7 @@ def sse_pd(obj, Mod, REG, RM, data, _inv):
 # F2 prefixed:
 # ------------
 
+
 # xmm, xmm/m128
 @ispec_ia32("*>[ {0f}{7c} /r ]", mnemonic="HADDPS")
 @ispec_ia32("*>[ {0f}{7d} /r ]", mnemonic="HSUBPS")
@@ -550,6 +565,7 @@ def sse_sd(obj, Mod, REG, RM, data):
 
 # F3 prefixed:
 # ------------
+
 
 # (SCALAR SINGLE)
 # xmm, xmm/m32
@@ -688,6 +704,7 @@ def sse_sd(obj, Mod, REG, RM, data):
 # -------------
 # Note that thos specs MUST APPEAR AFTER f2/f3 prefixes which have priority over 66,
 # so that 66-related specs will be matched after identical f2/f3 specs
+
 
 # (PACKED DOUBLE)
 # xmm, xmm/m128
@@ -1033,6 +1050,7 @@ def sse_pd(obj, Mod, RM, data):
 
 
 # moves:
+
 
 # xmm, xmm/m32 with 66 prefix
 # xmm/m32, xmm with 66 prefix
