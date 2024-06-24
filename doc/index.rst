@@ -35,8 +35,8 @@ It features:
 - a graphical user interface that can either be run as a standalone client or
   as an IDA plugin.
 
-.. image:: gui_load.png
-   :width: 600
+.. image:: amo_emu_inherit.png
+   :width: 100%
 
 .. ----------------------------------------------------------------------------  
 .. _user-docs:
