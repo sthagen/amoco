@@ -81,6 +81,8 @@ Licence
 
 Please see `LICENSE`_.
 
+SPDX-License-Identifier: [GPL-2.0-or-later](https://spdx.org/licenses/GPL-2.0-or-later)
+
 
 Changelog
 =========
